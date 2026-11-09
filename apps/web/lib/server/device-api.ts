@@ -92,6 +92,12 @@ async function buildLicense(
   return signLicense(payload, env.licensePrivateKey);
 }
 
+/** Never issue "full" while membership is expired or blocked (stored device mode is left alone). */
+function isInactive(client: ClientRecord, now: Date): boolean {
+  const status = membershipStatus(client, now);
+  return status === "expired" || status === "blocked";
+}
+
 async function finishSignIn(
   repo: Repo,
   env: ServerEnv,
@@ -102,17 +108,18 @@ async function finishSignIn(
   if (outcome.outcome !== "ok") return null;
   const client = await repo.getClient(outcome.clientId);
   if (!client) return null;
+  const mode = isInactive(client, ctx.now) ? "restore_only" : outcome.mode;
   const license = await buildLicense(
     repo,
     env,
     client,
     outcome.deviceId,
-    outcome.mode,
+    mode,
     ctx.now,
   );
   return {
     status: 200,
-    body: { deviceToken: token, license, mode: outcome.mode },
+    body: { deviceToken: token, license, mode },
   };
 }
 
@@ -283,12 +290,14 @@ export async function refreshLicense(
   const found = await repo.deviceByToken(hashToken(bearer));
   if (!found) return deviceRemoved();
   await repo.touchDevice(found.device.id, appVersion, ctx.now);
-  const status = membershipStatus(found.client, ctx.now);
-  let mode = found.device.mode;
-  if (mode === "restore_only" && status !== "expired" && status !== "blocked") {
-    const promoted = await repo.promoteDevice(found.device.id, ctx.now);
-    if (promoted === "removed") return deviceRemoved();
-    mode = promoted;
+  let mode: DeviceMode = "restore_only";
+  if (!isInactive(found.client, ctx.now)) {
+    mode = found.device.mode;
+    if (mode === "restore_only") {
+      const promoted = await repo.promoteDevice(found.device.id, ctx.now);
+      if (promoted === "removed") return deviceRemoved();
+      mode = promoted;
+    }
   }
   const license = await buildLicense(
     repo,

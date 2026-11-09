@@ -250,6 +250,35 @@ describe("renewal after an expired sign-in", () => {
   });
 });
 
+describe("inactive membership never gets full", () => {
+  for (const [label, off, on] of [
+    [
+      "expired",
+      { expiresAt: new Date("2026-01-01T00:00:00.000Z") },
+      { expiresAt: new Date("2028-01-01T00:00:00.000Z") },
+    ],
+    ["blocked", { blocked: true }, { blocked: false }],
+  ] as const) {
+    it(`${label}: restore_only while inactive, full again after renewal`, async () => {
+      await setup();
+      const t = ((await signIn(repo, env, pw(), ctx)).body as Ok).deviceToken;
+      await repo.updateClient("c1", off);
+      let r = await refreshLicense(repo, env, t, { appVersion: "1" }, ctx);
+      expect((r.body as Ok).mode).toBe("restore_only");
+      expect(verifyLicense((r.body as Ok).license, PUB)!.mode).toBe(
+        "restore_only",
+      );
+      expect(repo.devices[0].mode).toBe("full");
+      expect((await repo.listClients())[0].pcsUsed).toBe(1);
+      await repo.updateClient("c1", on);
+      r = await refreshLicense(repo, env, t, { appVersion: "1" }, ctx);
+      expect((r.body as Ok).mode).toBe("full");
+      expect(verifyLicense((r.body as Ok).license, PUB)!.mode).toBe("full");
+      expect((await repo.listClients())[0].pcsUsed).toBe(1);
+    });
+  }
+});
+
 describe("validation", () => {
   it("rejects malformed bodies with 400", async () => {
     for (const body of [
