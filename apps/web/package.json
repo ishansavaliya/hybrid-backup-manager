@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build --webpack",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@bakvion/ui": "workspace:*",
@@ -22,6 +23,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@tailwindcss/postcss": "^4.1.17",
-    "tailwindcss": "^4.1.17"
+    "tailwindcss": "^4.1.17",
+    "vitest": "^3.2.4"
   }
 }
