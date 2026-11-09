@@ -1,0 +1,6 @@
+{
+  "identifier": "main-capability",
+  "description": "Local application window and explicit native file selection",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+artifacts/
+target/
+.superpowers/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+.DS_Store
+playwright-report/
+test-results/
+*.tsbuildinfo
