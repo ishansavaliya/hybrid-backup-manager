@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  AdminInputError,
   createClientAccount,
   deleteTestClient,
   extendMembership,
   issueLoginCode,
+  publicErrorMessage,
   removeClientDevice,
   setBlocked,
   setCredentials,
@@ -31,7 +33,14 @@ function text(formData: FormData, key: string): string {
 }
 
 function message(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong";
+  if (!(err instanceof AdminInputError)) {
+    // Never log form values; the error itself may carry raw database text, so keep it server-side.
+    console.error(
+      "Admin action failed:",
+      err instanceof Error ? err.name : typeof err,
+    );
+  }
+  return publicErrorMessage(err);
 }
 
 function clientPath(

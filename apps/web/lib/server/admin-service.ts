@@ -9,6 +9,27 @@ import {
   type Repo,
 } from "./repo";
 
+/** Validation or lookup failure whose message is safe to show to the admin. */
+export class AdminInputError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "AdminInputError";
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
+export const GENERIC_ERROR = "Something went wrong. Please try again.";
+
+/** Only AdminInputError text reaches the page; anything else (e.g. raw DB errors) is hidden. */
+export function publicErrorMessage(e: unknown): string {
+  return e instanceof AdminInputError ? e.message : GENERIC_ERROR;
+}
+
 export const LOGIN_CODE_HOURS = 48;
 export const MAX_RENEW_CONTACT = 500;
 const CODE_ATTEMPTS = 5;
@@ -48,24 +69,24 @@ export function parseCalendarDate(date: string): Date {
       return endOfDayIST(date);
     }
   }
-  throw new Error("Enter a valid date as YYYY-MM-DD");
+  throw new AdminInputError("Enter a valid date as YYYY-MM-DD");
 }
 
 function checkPcLimit(limit: number): void {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-    throw new Error("PC limit must be a whole number from 1 to 100");
+    throw new AdminInputError("PC limit must be a whole number from 1 to 100");
   }
 }
 
 function requireName(name: string): string {
   const trimmed = name.trim();
-  if (!trimmed) throw new Error("Name is required");
+  if (!trimmed) throw new AdminInputError("Name is required");
   return trimmed;
 }
 
 async function mustGetClient(repo: Repo, id: string) {
-  const client = await repo.getClient(id);
-  if (!client) throw new Error("Client not found");
+  const client = isUuid(id) ? await repo.getClient(id) : null;
+  if (!client) throw new AdminInputError("Client not found");
   return client;
 }
 
@@ -145,7 +166,7 @@ export async function extendMembership(
   now: Date,
 ): Promise<Date> {
   if (![1, 3, 12].includes(months))
-    throw new Error("Months must be 1, 3 or 12");
+    throw new AdminInputError("Months must be 1, 3 or 12");
   const client = await mustGetClient(repo, id);
   const expiresAt = extendExpiry(client.expiresAt, now, months);
   await repo.updateClient(id, { expiresAt });
@@ -181,19 +202,21 @@ export async function setCredentials(
   password: string,
 ): Promise<void> {
   if (!isLoginNameShape(username)) {
-    throw new Error(
+    throw new AdminInputError(
       "Username must be 3-64 characters: letters, numbers, dot, underscore or hyphen",
     );
   }
   if (password.length < MIN_PASSWORD) {
-    throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
+    throw new AdminInputError(
+      `Password must be at least ${MIN_PASSWORD} characters`,
+    );
   }
   await mustGetClient(repo, id);
   try {
     await repo.setLogin(id, username, await hashPassword(password));
   } catch (err) {
     if (err instanceof UsernameTakenError)
-      throw new Error("Username already in use", { cause: err });
+      throw new AdminInputError("Username already in use", { cause: err });
     throw err;
   }
   await repo.audit({
@@ -254,7 +277,9 @@ export async function issueLoginCode(
       };
     }
   }
-  throw new Error("Could not generate a unique code. Please try again.");
+  throw new AdminInputError(
+    "Could not generate a unique code. Please try again.",
+  );
 }
 
 export async function setBlocked(
@@ -275,8 +300,13 @@ export async function removeClientDevice(
   repo: Repo,
   deviceId: string,
   now: Date,
-  clientId?: string,
+  clientId: string,
 ): Promise<void> {
+  if (!isUuid(deviceId) || !isUuid(clientId))
+    throw new AdminInputError("PC not found");
+  const devices = await repo.listDevices(clientId);
+  if (!devices.some((d) => d.id === deviceId))
+    throw new AdminInputError("PC not found");
   await repo.removeDevice(deviceId, now);
   await repo.audit({
     actor: "admin",
@@ -288,7 +318,8 @@ export async function removeClientDevice(
 
 export async function deleteTestClient(repo: Repo, id: string): Promise<void> {
   const client = await mustGetClient(repo, id);
-  if (!client.isTest) throw new Error("Only test clients can be deleted");
+  if (!client.isTest)
+    throw new AdminInputError("Only test clients can be deleted");
   await repo.deleteClient(id);
   await repo.audit({
     actor: "admin",
@@ -300,7 +331,7 @@ export async function deleteTestClient(repo: Repo, id: string): Promise<void> {
 export async function setRenewContact(repo: Repo, text: string): Promise<void> {
   const value = text.trim();
   if (value.length > MAX_RENEW_CONTACT) {
-    throw new Error(
+    throw new AdminInputError(
       `Renew contact must be ${MAX_RENEW_CONTACT} characters or fewer`,
     );
   }

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  AdminInputError,
+  GENERIC_ERROR,
   createClientAccount,
   deleteTestClient,
   extendMembership,
   filterClients,
   formatIST,
   issueLoginCode,
+  publicErrorMessage,
   removeClientDevice,
   setBlocked,
   setCredentials,
@@ -309,5 +312,71 @@ describe("filterClients", () => {
     expect(ids(filterClients(list, "SOO", "all", now))).toEqual(["soon"]);
     expect(ids(filterClients(list, "1234", "all", now))).toEqual(["soon"]);
     expect(ids(filterClients(list, "zed", "all", now))).toEqual(["tst"]);
+  });
+});
+
+describe("AdminInputError", () => {
+  it("is thrown for every validation path", async () => {
+    const { repo, id } = await setup();
+    const checks: Promise<unknown>[] = [
+      createClientAccount(repo, { ...input, expiresOn: "garbage" }, now),
+      createClientAccount(repo, { ...input, name: " " }, now),
+      createClientAccount(repo, { ...input, pcLimit: 0 }, now),
+      setExpiryDate(repo, id, "2026-02-31"),
+      setPcLimit(repo, id, 101),
+      extendMembership(repo, id, 2 as 1, now),
+      setCredentials(repo, id, "a b", "longenough"),
+      setCredentials(repo, id, "good.name", "short"),
+      setRenewContact(repo, "x".repeat(501)),
+      deleteTestClient(repo, id),
+      setBlocked(repo, "not-a-uuid", true),
+      setBlocked(repo, "00000000-0000-4000-8000-000000000000", true),
+      removeClientDevice(repo, "nope", now, id),
+    ];
+    for (const c of checks)
+      await expect(c).rejects.toBeInstanceOf(AdminInputError);
+    await setCredentials(repo, id, "acme.user", "longenough");
+    const other = await createClientAccount(repo, input, now);
+    await expect(
+      setCredentials(repo, other, "acme.user", "longenough"),
+    ).rejects.toBeInstanceOf(AdminInputError);
+  });
+  it("publicErrorMessage hides non-AdminInputError text", () => {
+    expect(publicErrorMessage(new AdminInputError("Client not found"))).toBe(
+      "Client not found",
+    );
+    expect(
+      publicErrorMessage(new Error('invalid input syntax for type uuid: "x"')),
+    ).toBe(GENERIC_ERROR);
+    expect(publicErrorMessage("boom")).toBe(GENERIC_ERROR);
+  });
+  it("a repo failure surfaces as a generic error, not input error", async () => {
+    const { repo, id } = await setup();
+    repo.updateClient = async () => {
+      throw new Error("violates constraint clients_pc_limit_check");
+    };
+    const err = await setPcLimit(repo, id, 5).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(AdminInputError);
+    expect(publicErrorMessage(err)).toBe(GENERIC_ERROR);
+  });
+  it("removeClientDevice refuses a device of another client", async () => {
+    const { repo, id } = await setup();
+    const other = await createClientAccount(repo, input, now);
+    const r = await repo.registerDevice(
+      other,
+      {
+        installId: "i9",
+        machineName: "PC",
+        windowsVersion: "11",
+        appVersion: "1",
+      },
+      "tok9",
+      now,
+    );
+    if (r.outcome !== "ok") throw new Error("register failed");
+    await expect(
+      removeClientDevice(repo, r.deviceId, now, id),
+    ).rejects.toBeInstanceOf(AdminInputError);
+    expect(await repo.deviceByToken("tok9")).not.toBeNull();
   });
 });

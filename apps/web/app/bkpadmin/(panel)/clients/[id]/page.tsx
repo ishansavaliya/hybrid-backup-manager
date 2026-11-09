@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Button, Card } from "@bakvion/ui";
+import { isUuid } from "../../../../../lib/server/admin-service";
 import { serverEnv } from "../../../../../lib/server/env";
 import {
   daysLeft,
@@ -27,8 +28,6 @@ import { DevicesCard } from "./DevicesCard";
 
 export const dynamic = "force-dynamic";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function ClientPage({
   params,
   searchParams,
@@ -38,7 +37,7 @@ export default async function ClientPage({
 }) {
   const { id } = await params;
   const { error, ok } = await searchParams;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
   const repo = createSupabaseRepo(serverEnv());
   const client = await repo.getClient(id);
   if (!client) notFound();
