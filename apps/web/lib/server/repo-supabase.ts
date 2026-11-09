@@ -17,7 +17,8 @@ type Row = Record<string, unknown>;
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const date = (v: unknown): Date => new Date(String(v));
-const dateOrNull = (v: unknown): Date | null => (v ? new Date(String(v)) : null);
+const dateOrNull = (v: unknown): Date | null =>
+  v ? new Date(String(v)) : null;
 
 function fail(action: string, error: { message: string }): never {
   throw new Error(`${action} failed: ${error.message}`);
@@ -160,6 +161,17 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
       const cl = one(dev.clients);
       if (!cl) return null;
       return { device: toDevice(dev), client: toClient(cl) };
+    },
+
+    async promoteDevice(deviceId, now) {
+      const { data, error } = await db.rpc("bkp_promote_device", {
+        p_device_id: deviceId,
+        p_now: iso(now),
+      });
+      if (error) fail("promoteDevice", error);
+      if (data === "full" || data === "restore_only" || data === "removed")
+        return data;
+      throw new Error("promoteDevice: unexpected result");
     },
 
     async touchDevice(deviceId, appVersion, now) {

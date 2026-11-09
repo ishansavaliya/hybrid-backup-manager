@@ -82,6 +82,11 @@ export interface Repo {
   deviceByToken(
     tokenHash: string,
   ): Promise<{ device: DeviceRecord; client: ClientRecord } | null>;
+  /** Upgrade a restore-only device to full when the client is active and a PC slot is free. */
+  promoteDevice(
+    deviceId: string,
+    now: Date,
+  ): Promise<"full" | "restore_only" | "removed">;
   touchDevice(deviceId: string, appVersion: string, now: Date): Promise<void>;
   revokeToken(tokenHash: string, now: Date): Promise<void>;
   rateLimited(

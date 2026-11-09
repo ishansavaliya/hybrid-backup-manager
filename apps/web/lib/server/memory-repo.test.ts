@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { serverEnv } from "./env";
-import { exactUsernameMatch, UsernameTakenError, type ClientRecord, type DeviceInfo } from "./repo";
+import {
+  exactUsernameMatch,
+  UsernameTakenError,
+  type ClientRecord,
+  type DeviceInfo,
+} from "./repo";
 import { createMemoryRepo } from "./testing/memory-repo";
 
 const NOW = new Date("2026-11-10T00:00:00Z");
@@ -53,7 +58,9 @@ describe("registerDevice", () => {
     const r = await repo.registerDevice("c1", dev("c"), "t1", NOW);
     expect(r).toMatchObject({ outcome: "ok", mode: "restore_only" });
     expect(repo.devices.filter((d) => d.mode === "full")).toHaveLength(0);
-    expect(repo.devices.filter((d) => d.mode === "restore_only")).toHaveLength(1);
+    expect(repo.devices.filter((d) => d.mode === "restore_only")).toHaveLength(
+      1,
+    );
   });
 
   it("blocked client gets restore_only", async () => {
@@ -85,7 +92,9 @@ describe("registerDevice", () => {
 describe("signInWithCode", () => {
   it("is single use, honours expiry, keeps code unused on pc_limit", async () => {
     const repo = setup();
-    expect(await repo.createLoginCode("c1", "h1", new Date("2026-11-12T00:00:00Z"))).toBe(true);
+    expect(
+      await repo.createLoginCode("c1", "h1", new Date("2026-11-12T00:00:00Z")),
+    ).toBe(true);
     const ok = await repo.signInWithCode("h1", dev("p1"), "t1", NOW);
     expect(ok).toMatchObject({ outcome: "ok", clientId: "c1", mode: "full" });
     expect(await repo.signInWithCode("h1", dev("p1"), "t2", NOW)).toEqual({
@@ -93,11 +102,15 @@ describe("signInWithCode", () => {
     });
 
     await repo.createLoginCode("c1", "h-old", new Date("2026-11-09T00:00:00Z"));
-    expect((await repo.signInWithCode("h-old", dev("p1"), "t3", NOW)).outcome).toBe(
-      "code_invalid",
-    );
+    expect(
+      (await repo.signInWithCode("h-old", dev("p1"), "t3", NOW)).outcome,
+    ).toBe("code_invalid");
 
-    await repo.createLoginCode("c1", "h-full", new Date("2026-11-12T00:00:00Z"));
+    await repo.createLoginCode(
+      "c1",
+      "h-full",
+      new Date("2026-11-12T00:00:00Z"),
+    );
     expect(await repo.signInWithCode("h-full", dev("p2"), "t4", NOW)).toEqual({
       outcome: "pc_limit",
       pcLimit: 1,
@@ -123,9 +136,17 @@ describe("createLoginCode", () => {
     expect(await repo.createLoginCode("c1", "dup", future)).toBe(true);
     expect(await repo.createLoginCode("c1", "dup", future)).toBe(false);
 
-    expect(await repo.createLoginCode("c1", "stale", new Date("2000-01-01T00:00:00Z"))).toBe(true);
+    expect(
+      await repo.createLoginCode(
+        "c1",
+        "stale",
+        new Date("2000-01-01T00:00:00Z"),
+      ),
+    ).toBe(true);
     expect(await repo.createLoginCode("c1", "stale", future)).toBe(true);
-    expect([...repo.codes.values()].filter((c) => c.codeHmac === "stale")).toHaveLength(1);
+    expect(
+      [...repo.codes.values()].filter((c) => c.codeHmac === "stale"),
+    ).toHaveLength(1);
   });
 });
 
@@ -134,7 +155,9 @@ describe("rate limits", () => {
     const repo = setup();
     for (let i = 0; i < 5; i++) await repo.recordFailure("k", 900, NOW);
     expect(await repo.rateLimited("k", 5, 900, NOW)).toBe(true);
-    expect(await repo.rateLimited("k", 5, 900, new Date(NOW.getTime() + 901_000))).toBe(false);
+    expect(
+      await repo.rateLimited("k", 5, 900, new Date(NOW.getTime() + 901_000)),
+    ).toBe(false);
   });
 
   it("below max is not limited", async () => {
@@ -147,9 +170,50 @@ describe("rate limits", () => {
     const repo = setup();
     for (let i = 0; i < 5; i++) await repo.recordFailure("kr", 900, NOW);
     await repo.recordFailure("kr", 900, new Date(NOW.getTime() + 901_000));
-    expect(await repo.rateLimited("kr", 2, 900, new Date(NOW.getTime() + 901_000))).toBe(false);
+    expect(
+      await repo.rateLimited("kr", 2, 900, new Date(NOW.getTime() + 901_000)),
+    ).toBe(false);
     await repo.recordFailure("kr", 900, new Date(NOW.getTime() + 902_000));
-    expect(await repo.rateLimited("kr", 2, 900, new Date(NOW.getTime() + 902_000))).toBe(true);
+    expect(
+      await repo.rateLimited("kr", 2, 900, new Date(NOW.getTime() + 902_000)),
+    ).toBe(true);
+  });
+});
+
+describe("promoteDevice", () => {
+  const LATER = new Date("2027-06-01T00:00:00Z");
+  const renewed = new Date("2028-01-01T00:00:00Z");
+  const expired = { expiresAt: new Date("2026-01-01T00:00:00Z") };
+
+  it("promotes with a free slot once the client is renewed", async () => {
+    const repo = setup(expired);
+    const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);
+    if (a.outcome !== "ok") throw new Error("expected ok");
+    expect(await repo.promoteDevice(a.deviceId, NOW)).toBe("restore_only");
+    await repo.updateClient("c1", { expiresAt: renewed });
+    expect(await repo.promoteDevice(a.deviceId, LATER)).toBe("full");
+    expect(await repo.promoteDevice(a.deviceId, LATER)).toBe("full");
+  });
+
+  it("stays restore_only when the limit is reached", async () => {
+    const repo = setup(expired);
+    const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);
+    await repo.updateClient("c1", { expiresAt: renewed });
+    const b = await repo.registerDevice("c1", dev("b"), "tb", LATER);
+    if (a.outcome !== "ok" || b.outcome !== "ok")
+      throw new Error("expected ok");
+    expect(await repo.promoteDevice(a.deviceId, LATER)).toBe("restore_only");
+  });
+
+  it("leaves blocked clients unchanged and reports removed devices", async () => {
+    const repo = setup(expired);
+    const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);
+    if (a.outcome !== "ok") throw new Error("expected ok");
+    await repo.updateClient("c1", { expiresAt: renewed, blocked: true });
+    expect(await repo.promoteDevice(a.deviceId, LATER)).toBe("restore_only");
+    await repo.removeDevice(a.deviceId, LATER);
+    expect(await repo.promoteDevice(a.deviceId, LATER)).toBe("removed");
+    expect(await repo.promoteDevice("nope", LATER)).toBe("removed");
   });
 });
 
@@ -158,7 +222,8 @@ describe("devices and tokens", () => {
     const repo = setup({ pcLimit: 2 });
     const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);
     const b = await repo.registerDevice("c1", dev("b"), "tb", NOW);
-    if (a.outcome !== "ok" || b.outcome !== "ok") throw new Error("expected ok");
+    if (a.outcome !== "ok" || b.outcome !== "ok")
+      throw new Error("expected ok");
     expect((await repo.deviceByToken("ta"))?.client.id).toBe("c1");
     await repo.revokeToken("ta", NOW);
     expect(await repo.deviceByToken("ta")).toBeNull();
@@ -182,7 +247,9 @@ describe("devices and tokens", () => {
     const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);
     if (a.outcome !== "ok") throw new Error("expected ok");
     await repo.removeDevice(a.deviceId, NOW);
-    expect((await repo.registerDevice("c1", dev("b"), "tb", NOW)).outcome).toBe("ok");
+    expect((await repo.registerDevice("c1", dev("b"), "tb", NOW)).outcome).toBe(
+      "ok",
+    );
   });
 });
 
@@ -192,8 +259,13 @@ describe("logins and clients", () => {
       clients: [client(), client({ id: "c2" })],
     });
     await repo.setLogin("c1", "Alice", "hash1");
-    expect(await repo.findLogin("aLiCe")).toEqual({ clientId: "c1", passwordHash: "hash1" });
-    await expect(repo.setLogin("c2", "ALICE", "h")).rejects.toBeInstanceOf(UsernameTakenError);
+    expect(await repo.findLogin("aLiCe")).toEqual({
+      clientId: "c1",
+      passwordHash: "hash1",
+    });
+    await expect(repo.setLogin("c2", "ALICE", "h")).rejects.toBeInstanceOf(
+      UsernameTakenError,
+    );
     await repo.setLogin("c1", "alice", "hash2");
     expect((await repo.findLogin("alice"))?.passwordHash).toBe("hash2");
   });
@@ -205,7 +277,9 @@ describe("logins and clients", () => {
       expect(await repo.findLogin(q)).toBeNull();
     }
     expect(exactUsernameMatch([{ username: "alice" }], "al*")).toBeNull();
-    expect(exactUsernameMatch([{ username: "bob" }, { username: "Alice" }], "ALICE")).toEqual({
+    expect(
+      exactUsernameMatch([{ username: "bob" }, { username: "Alice" }], "ALICE"),
+    ).toEqual({
       username: "Alice",
     });
   });
@@ -217,7 +291,10 @@ describe("logins and clients", () => {
     const [s] = await repo.listClients();
     expect(s).toMatchObject({ username: "bob", pcsUsed: 1, lastSeenAt: NOW });
     await repo.updateClient("c1", { name: "Renamed", blocked: true });
-    expect(await repo.getClient("c1")).toMatchObject({ name: "Renamed", blocked: true });
+    expect(await repo.getClient("c1")).toMatchObject({
+      name: "Renamed",
+      blocked: true,
+    });
     await repo.deleteClient("c1");
     expect(await repo.getClient("c1")).toBeNull();
     expect(await repo.findLogin("bob")).toBeNull();
@@ -228,7 +305,9 @@ describe("logins and clients", () => {
     const input: Partial<ClientRecord> = client();
     delete input.id;
     delete input.createdAt;
-    const id = await repo.createClient(input as Omit<ClientRecord, "id" | "createdAt">);
+    const id = await repo.createClient(
+      input as Omit<ClientRecord, "id" | "createdAt">,
+    );
     expect((await repo.getClient(id))?.name).toBe("Test");
   });
 });
@@ -281,7 +360,9 @@ describe("serverEnv", () => {
   it("names the missing variable but never a value", () => {
     for (const n of names) process.env[n] = "secret-value";
     delete process.env.BKP_SESSION_SECRET;
-    expect(() => serverEnv()).toThrow("Missing server setting: BKP_SESSION_SECRET");
+    expect(() => serverEnv()).toThrow(
+      "Missing server setting: BKP_SESSION_SECRET",
+    );
     try {
       serverEnv();
     } catch (e) {

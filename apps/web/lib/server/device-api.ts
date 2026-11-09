@@ -75,6 +75,7 @@ async function buildLicense(
   env: ServerEnv,
   client: ClientRecord,
   deviceId: string,
+  mode: DeviceMode,
   now: Date,
 ): Promise<string> {
   const payload: LicensePayload = {
@@ -83,21 +84,12 @@ async function buildLicense(
     clientName: client.name,
     deviceId,
     status: client.blocked ? "blocked" : "active",
+    mode,
     expiresAt: client.expiresAt.toISOString(),
     issuedAt: now.toISOString(),
     renewContact: await repo.getSetting("renew_contact"),
   };
   return signLicense(payload, env.licensePrivateKey);
-}
-
-function modeFor(
-  client: ClientRecord,
-  stored: DeviceMode,
-  now: Date,
-): DeviceMode {
-  const status = membershipStatus(client, now);
-  if (status === "expired" || status === "blocked") return "restore_only";
-  return stored;
 }
 
 async function finishSignIn(
@@ -115,6 +107,7 @@ async function finishSignIn(
     env,
     client,
     outcome.deviceId,
+    outcome.mode,
     ctx.now,
   );
   return {
@@ -290,17 +283,22 @@ export async function refreshLicense(
   const found = await repo.deviceByToken(hashToken(bearer));
   if (!found) return deviceRemoved();
   await repo.touchDevice(found.device.id, appVersion, ctx.now);
+  const status = membershipStatus(found.client, ctx.now);
+  let mode = found.device.mode;
+  if (mode === "restore_only" && status !== "expired" && status !== "blocked") {
+    const promoted = await repo.promoteDevice(found.device.id, ctx.now);
+    if (promoted === "removed") return deviceRemoved();
+    mode = promoted;
+  }
   const license = await buildLicense(
     repo,
     env,
     found.client,
     found.device.id,
+    mode,
     ctx.now,
   );
-  return {
-    status: 200,
-    body: { license, mode: modeFor(found.client, found.device.mode, ctx.now) },
-  };
+  return { status: 200, body: { license, mode } };
 }
 
 export async function signOut(

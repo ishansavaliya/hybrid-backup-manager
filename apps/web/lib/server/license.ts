@@ -6,6 +6,7 @@ export type LicensePayload = {
   clientName: string;
   deviceId: string;
   status: "active" | "blocked";
+  mode: "full" | "restore_only";
   expiresAt: string;
   issuedAt: string;
   renewContact: string;
@@ -24,7 +25,10 @@ export function signLicense(p: LicensePayload, privateKeyB64: string): string {
   return `${json.toString("base64url")}.${signature.toString("base64url")}`;
 }
 
-export function verifyLicense(token: string, publicKeyB64: string): LicensePayload | null {
+export function verifyLicense(
+  token: string,
+  publicKeyB64: string,
+): LicensePayload | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 2) return null;

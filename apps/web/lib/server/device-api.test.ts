@@ -215,6 +215,41 @@ describe("license refresh and sign-out", () => {
   });
 });
 
+describe("renewal after an expired sign-in", () => {
+  const expired = { expiresAt: new Date("2026-01-01T00:00:00.000Z") };
+  const renewed = new Date("2028-01-01T00:00:00.000Z");
+
+  it("unlocks at the next refresh when a slot is free", async () => {
+    await setup(expired);
+    const t = ((await signIn(repo, env, pw(), ctx)).body as Ok).deviceToken;
+    expect(repo.devices[0].mode).toBe("restore_only");
+    await repo.updateClient("c1", { expiresAt: renewed });
+    const r = await refreshLicense(repo, env, t, { appVersion: "1" }, ctx);
+    const body = r.body as Ok;
+    expect(body.mode).toBe("full");
+    expect(verifyLicense(body.license, PUB)!.mode).toBe("full");
+    expect((await repo.listClients())[0].pcsUsed).toBe(1);
+  });
+
+  it("stays restore_only when another PC holds the only slot", async () => {
+    await setup(expired);
+    const t = ((await signIn(repo, env, pw(), ctx)).body as Ok).deviceToken;
+    await repo.updateClient("c1", { expiresAt: renewed });
+    const other = await signIn(
+      repo,
+      env,
+      pw("pw-123456", "acme", device(2)),
+      ctx,
+    );
+    expect((other.body as Ok).mode).toBe("full");
+    const r = await refreshLicense(repo, env, t, { appVersion: "1" }, ctx);
+    const body = r.body as Ok;
+    expect(body.mode).toBe("restore_only");
+    expect(verifyLicense(body.license, PUB)!.mode).toBe("restore_only");
+    expect((await repo.listClients())[0].pcsUsed).toBe(1);
+  });
+});
+
 describe("validation", () => {
   it("rejects malformed bodies with 400", async () => {
     for (const body of [

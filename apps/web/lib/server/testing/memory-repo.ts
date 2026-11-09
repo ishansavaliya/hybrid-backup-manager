@@ -158,6 +158,28 @@ export function createMemoryRepo(seed?: {
       return { device: { ...device }, client: { ...client } };
     },
 
+    async promoteDevice(deviceId, now) {
+      const device = devices.find((x) => x.id === deviceId);
+      if (!device || device.removedAt) return "removed";
+      const client = clients.get(device.clientId);
+      if (!client) return "removed";
+      if (client.blocked || client.expiresAt.getTime() < now.getTime())
+        return device.mode;
+      if (device.mode === "full") return "full";
+      const used = devices.filter(
+        (x) =>
+          x.clientId === client.id &&
+          x.mode === "full" &&
+          x.removedAt === null &&
+          x.id !== deviceId,
+      ).length;
+      if (used < client.pcLimit) {
+        device.mode = "full";
+        return "full";
+      }
+      return "restore_only";
+    },
+
     async touchDevice(deviceId, appVersion, now) {
       const device = devices.find((x) => x.id === deviceId);
       if (device) {

@@ -88,6 +88,7 @@ try {
       const calls = [
         `select * from bkp_register_device('00000000-0000-0000-0000-000000000000','i','m','w','v','t',now())`,
         `select * from bkp_sign_in_with_code('h','i','m','w','v','t',now())`,
+        `select bkp_promote_device('00000000-0000-0000-0000-000000000000', now())`,
         `select bkp_rate_limited('k',5,900,now())`,
         `select bkp_record_failure('k',900,now())`,
       ];
@@ -239,6 +240,43 @@ try {
       assert.equal(later.rows[0].r, false);
     },
   );
+
+  await check("promote: free slot, full slot, inactive, removed", async () => {
+    const promote = async (id, at = NOW) =>
+      (await db.query(`select bkp_promote_device($1, $2) as r`, [id, at]))
+        .rows[0].r;
+    // Device registered while expired, then the client is renewed.
+    const c = await newClient({ pcLimit: 1, expires: "2026-01-01T00:00:00Z" });
+    const d = (await register(c, "pa")).device_id;
+    assert.equal((await register(c, "pa")).mode, "restore_only");
+    assert.equal(await promote(d), "restore_only"); // still expired: unchanged
+    await db.query(`update clients set expires_at='2027-01-01Z' where id=$1`, [
+      c,
+    ]);
+    assert.equal(await promote(d), "full"); // free slot
+    assert.equal(await deviceCount(c, "full"), 1);
+    assert.equal(await promote(d), "full"); // already full
+    // Limit reached by another full device: stays restore_only.
+    const c2 = await newClient({ pcLimit: 1, expires: "2026-01-01T00:00:00Z" });
+    const slow = (await register(c2, "slow")).device_id;
+    await db.query(`update clients set expires_at='2027-01-01Z' where id=$1`, [
+      c2,
+    ]);
+    assert.equal((await register(c2, "fast")).outcome, "ok");
+    assert.equal(await promote(slow), "restore_only");
+    assert.equal(await deviceCount(c2, "full"), 1);
+    // Blocked client: unchanged.
+    await db.query(`update clients set blocked=true where id=$1`, [c2]);
+    await db.query(`update devices set mode='full' where install_id='fast'`);
+    assert.equal(await promote(slow), "restore_only");
+    // Removed device.
+    await db.query(`update devices set removed_at=now() where id=$1`, [slow]);
+    assert.equal(await promote(slow), "removed");
+    assert.equal(
+      await promote("00000000-0000-0000-0000-000000000000"),
+      "removed",
+    );
+  });
 
   await check("rate limit: below max is not limited", async () => {
     for (let i = 0; i < 4; i++) {

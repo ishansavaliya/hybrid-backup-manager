@@ -157,6 +157,49 @@ begin
 end;
 $$;
 
+create function public.bkp_promote_device(
+  p_device_id uuid,
+  p_now timestamptz
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_device public.devices%rowtype;
+  v_client public.clients%rowtype;
+  v_full_count int;
+begin
+  select * into v_device from public.devices d where d.id = p_device_id;
+  if not found then
+    return 'removed';
+  end if;
+  -- Same row lock as registration, so promotion and sign-in never double-book a slot.
+  select * into v_client from public.clients c where c.id = v_device.client_id for update;
+  select * into v_device from public.devices d where d.id = p_device_id;
+  if v_device.removed_at is not null then
+    return 'removed';
+  end if;
+  if v_client.blocked or v_client.expires_at < p_now then
+    return v_device.mode;
+  end if;
+  if v_device.mode = 'full' then
+    return 'full';
+  end if;
+  select count(*)::int into v_full_count
+    from public.devices d
+    where d.client_id = v_client.id
+      and d.mode = 'full'
+      and d.removed_at is null
+      and d.id <> p_device_id;
+  if v_full_count < v_client.pc_limit then
+    update public.devices set mode = 'full' where id = p_device_id;
+    return 'full';
+  end if;
+  return 'restore_only';
+end;
+$$;
+
 create function public.bkp_sign_in_with_code(
   p_code_hmac text,
   p_install_id text,
@@ -243,6 +286,7 @@ end;
 $$;
 
 revoke execute on function public.bkp_register_device(uuid, text, text, text, text, text, timestamptz) from public, anon, authenticated;
+revoke execute on function public.bkp_promote_device(uuid, timestamptz) from public, anon, authenticated;
 revoke execute on function public.bkp_sign_in_with_code(text, text, text, text, text, text, timestamptz) from public, anon, authenticated;
 revoke execute on function public.bkp_rate_limited(text, int, int, timestamptz) from public, anon, authenticated;
 revoke execute on function public.bkp_record_failure(text, int, timestamptz) from public, anon, authenticated;
