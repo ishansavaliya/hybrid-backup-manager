@@ -121,7 +121,7 @@ Backup data goes only from the client PC to the client's own disk or Drive folde
 ## 8. Admin panel (`/bkpadmin`)
 
 ### 8.1 Admin login
-- Single admin. Username and password come from environment variables (`.env.local` for development, Vercel environment settings in production). **(builder's call)** The password is stored as a hash (`BKP_ADMIN_PASSWORD_HASH`), not plain text; the repo includes a small command to generate the hash. A session secret env var signs the admin session cookie.
+- Single admin. Username and password come from environment variables (`.env.local` for development, Vercel environment settings in production). **(owner decision)** The password is stored directly in the server environment as `BKP_ADMIN_PASSWORD` (not hashed); the server compares it in constant time and it never appears in client code or logs. A session secret env var signs the admin session cookie.
 - After 5 wrong attempts, admin login pauses for 15 minutes.
 - Admin pages and admin API routes are unreachable without a valid admin session. `/bkpadmin` is not linked from the public site.
 
