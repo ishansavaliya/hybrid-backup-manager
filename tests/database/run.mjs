@@ -60,7 +60,10 @@ async function deviceCount(clientId, mode) {
 
 try {
   await db.exec(`create role anon; create role authenticated;
-    grant usage on schema public to anon, authenticated;`);
+    grant usage on schema public to anon, authenticated;
+    alter default privileges in schema public grant all on tables to anon, authenticated;
+    alter default privileges in schema public grant all on sequences to anon, authenticated;
+    alter default privileges in schema public grant all on functions to anon, authenticated;`);
   await db.exec(
     await readFile(
       new URL(
@@ -82,17 +85,38 @@ try {
         `select count(*)::int as n from pg_tables where schemaname='public'`,
       );
       assert.equal(all[0].n, 8);
-      await db.exec("set role anon");
-      try {
-        await assert.rejects(() => db.query("select * from clients"));
-      } finally {
-        await db.exec("reset role");
+      const calls = [
+        `select * from bkp_register_device('00000000-0000-0000-0000-000000000000','i','m','w','v','t',now())`,
+        `select * from bkp_sign_in_with_code('h','i','m','w','v','t',now())`,
+        `select bkp_rate_limited('k',5,900,now())`,
+        `select bkp_record_failure('k',900,now())`,
+      ];
+      for (const role of ["anon", "authenticated"]) {
+        await db.exec(`set role ${role}`);
+        try {
+          await assert.rejects(
+            () => db.query("select * from clients"),
+            /permission denied/,
+          );
+          for (const sql of calls) {
+            await assert.rejects(() => db.query(sql), /permission denied/);
+          }
+        } finally {
+          await db.exec("reset role");
+        }
       }
-      await db.exec("set role authenticated");
-      try {
-        await assert.rejects(() => db.query("select * from clients"));
-      } finally {
-        await db.exec("reset role");
+      // RLS alone must not leak rows, even if a table grant slipped in.
+      await newClient();
+      for (const role of ["anon", "authenticated"]) {
+        await db.exec(`grant select on clients to ${role}`);
+        await db.exec(`set role ${role}`);
+        try {
+          const { rows: leaked } = await db.query("select * from clients");
+          assert.equal(leaked.length, 0);
+        } finally {
+          await db.exec("reset role");
+          await db.exec(`revoke select on clients from ${role}`);
+        }
       }
       const { rows: s } = await db.query(
         `select value from settings where key='renew_contact'`,
@@ -213,6 +237,51 @@ try {
         [NOW],
       );
       assert.equal(later.rows[0].r, false);
+    },
+  );
+
+  await check("rate limit: below max is not limited", async () => {
+    for (let i = 0; i < 4; i++) {
+      await db.query(`select bkp_record_failure('k4', 900, $1)`, [NOW]);
+    }
+    const r = await db.query(`select bkp_rate_limited('k4', 5, 900, $1) as r`, [
+      NOW,
+    ]);
+    assert.equal(r.rows[0].r, false);
+  });
+
+  await check(
+    "rate limit: failure after window expiry resets to 1",
+    async () => {
+      for (let i = 0; i < 5; i++) {
+        await db.query(`select bkp_record_failure('kr', 900, $1)`, [NOW]);
+      }
+      await db.query(
+        `select bkp_record_failure('kr', 900, $1::timestamptz + interval '901 seconds')`,
+        [NOW],
+      );
+      const { rows } = await db.query(
+        `select failures from rate_limits where key='kr'`,
+      );
+      assert.equal(rows[0].failures, 1);
+    },
+  );
+
+  await check(
+    "code sign-in for expired client: restore_only, code consumed",
+    async () => {
+      const c = await newClient({ expires: "2026-11-09T00:00:00Z" });
+      await db.query(
+        `insert into login_codes(client_id, code_hmac, expires_at) values ($1, 'h-exp', $2)`,
+        [c, "2026-11-12T00:00:00Z"],
+      );
+      const r = await signIn("h-exp", "pe");
+      assert.equal(r.outcome, "ok");
+      assert.equal(r.mode, "restore_only");
+      const { rows } = await db.query(
+        `select used_at from login_codes where code_hmac='h-exp'`,
+      );
+      assert.notEqual(rows[0].used_at, null);
     },
   );
 } finally {
