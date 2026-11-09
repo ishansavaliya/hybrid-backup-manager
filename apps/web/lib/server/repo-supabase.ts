@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ServerEnv } from "./env";
 import {
+  exactUsernameMatch,
+  isLoginNameShape,
   UsernameTakenError,
   type AuditEntry,
   type ClientRecord,
@@ -86,13 +88,17 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
 
   return {
     async findLogin(username) {
+      if (!isLoginNameShape(username)) return null;
       const { data, error } = await db
         .from("client_logins")
-        .select("client_id, password_hash")
+        .select("client_id, username, password_hash")
         .ilike("username", username.replace(/[\\%_]/g, "\\$&"))
-        .limit(1);
+        .limit(10);
       if (error) fail("findLogin", error);
-      const r = data?.[0];
+      const r = exactUsernameMatch(
+        (data ?? []).map((x) => ({ ...x, username: str(x.username) })),
+        username,
+      );
       return r
         ? { clientId: str(r.client_id), passwordHash: str(r.password_hash) }
         : null;

@@ -117,3 +117,19 @@ export interface Repo {
   pruneAudit(olderThan: Date): Promise<number>;
   ping(): Promise<void>;
 }
+
+const LOGIN_NAME = /^[a-zA-Z0-9._-]{3,64}$/;
+
+/** Usernames outside the admin-allowed alphabet can never match a login. */
+export function isLoginNameShape(username: string): boolean {
+  return LOGIN_NAME.test(username);
+}
+
+/** Exact case-insensitive match among candidate rows (e.g. from an ilike pre-filter). */
+export function exactUsernameMatch<T extends { username: string }>(
+  rows: readonly T[],
+  input: string,
+): T | null {
+  const lower = input.toLowerCase();
+  return rows.find((r) => r.username.toLowerCase() === lower) ?? null;
+}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  isLoginNameShape,
   UsernameTakenError,
   type AuditEntry,
   type ClientRecord,
@@ -112,6 +113,7 @@ export function createMemoryRepo(seed?: {
     devices,
 
     async findLogin(username) {
+      if (!isLoginNameShape(username)) return null;
       const lower = username.toLowerCase();
       for (const [clientId, l] of logins) {
         if (l.username.toLowerCase() === lower) {

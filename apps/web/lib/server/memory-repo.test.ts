@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { serverEnv } from "./env";
-import { UsernameTakenError, type ClientRecord, type DeviceInfo } from "./repo";
+import { exactUsernameMatch, UsernameTakenError, type ClientRecord, type DeviceInfo } from "./repo";
 import { createMemoryRepo } from "./testing/memory-repo";
 
 const NOW = new Date("2026-11-10T00:00:00Z");
@@ -196,6 +196,18 @@ describe("logins and clients", () => {
     await expect(repo.setLogin("c2", "ALICE", "h")).rejects.toBeInstanceOf(UsernameTakenError);
     await repo.setLogin("c1", "alice", "hash2");
     expect((await repo.findLogin("alice"))?.passwordHash).toBe("hash2");
+  });
+
+  it("findLogin never treats wildcards as patterns", async () => {
+    const repo = setup();
+    await repo.setLogin("c1", "alice", "h");
+    for (const q of ["al*", "a%", "a_ice", "ali", ""]) {
+      expect(await repo.findLogin(q)).toBeNull();
+    }
+    expect(exactUsernameMatch([{ username: "alice" }], "al*")).toBeNull();
+    expect(exactUsernameMatch([{ username: "bob" }, { username: "Alice" }], "ALICE")).toEqual({
+      username: "Alice",
+    });
   });
 
   it("listClients summarises usage; update and delete work", async () => {
