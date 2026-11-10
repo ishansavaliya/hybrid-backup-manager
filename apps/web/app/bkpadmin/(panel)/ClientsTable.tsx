@@ -3,11 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Badge, DataTable, Segmented, StatusBadge } from "../ui";
+import { DataTable, Segmented, StatusBadge } from "../ui";
 import type { ClientStatus } from "../ui";
 
-export type ClientFilterKey =
-  "all" | "expiring" | "expired" | "blocked" | "test";
+export type ClientFilterKey = "all" | "expiring" | "expired" | "blocked";
 
 /** Serialisable row prepared on the server (no Date objects). */
 export interface ClientRow {
@@ -16,8 +15,7 @@ export interface ClientRow {
   contactPerson: string;
   phone: string;
   username: string;
-  isTest: boolean;
-  status: Exclude<ClientStatus, "test">;
+  status: ClientStatus;
   expiresAt: string;
   expiresLabel: string;
   /** e.g. "6 days left", "Expired 3 days ago". */
@@ -45,7 +43,6 @@ const columns = [
         </Link>
         <span className="gx-cell-sub">
           {c.row.original.contactPerson || c.row.original.username || "—"}
-          {c.row.original.isTest ? <Badge tone="accent">Test</Badge> : null}
         </span>
       </div>
     ),
@@ -92,7 +89,6 @@ const FILTERS: { key: ClientFilterKey; label: string }[] = [
   { key: "expiring", label: "Expiring" },
   { key: "expired", label: "Expired" },
   { key: "blocked", label: "Blocked" },
-  { key: "test", label: "Test" },
 ];
 
 export function ClientsTable({

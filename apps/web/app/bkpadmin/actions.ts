@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import {
   AdminInputError,
   createClientAccount,
-  deleteTestClient,
   extendMembership,
   issueLoginCode,
   publicErrorMessage,
@@ -92,7 +91,6 @@ export async function createClientFormAction(
         notes: text(formData, "notes"),
         expiresOn: text(formData, "expiresOn"),
         pcLimit: Number(text(formData, "pcLimit")),
-        isTest: formData.get("isTest") === "on",
       },
       new Date(),
     );
@@ -111,7 +109,6 @@ export async function updateDetailsAction(formData: FormData): Promise<void> {
       contactPerson: text(formData, "contactPerson"),
       phone: text(formData, "phone"),
       notes: text(formData, "notes"),
-      isTest: formData.get("isTest") === "on",
     }),
   );
 }
@@ -168,19 +165,6 @@ export async function removeDeviceAction(formData: FormData): Promise<void> {
   await mutateClient(id, "PC removed", (repo) =>
     removeClientDevice(repo, text(formData, "deviceId"), new Date(), id),
   );
-}
-
-export async function deleteClientAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const id = text(formData, "id");
-  let target = "/bkpadmin";
-  try {
-    await deleteTestClient(createSupabaseRepo(serverEnv()), id);
-    revalidatePath("/bkpadmin", "layout");
-  } catch (err) {
-    target = clientPath(id, { error: message(err) });
-  }
-  redirect(target);
 }
 
 export async function issueCodeAction(

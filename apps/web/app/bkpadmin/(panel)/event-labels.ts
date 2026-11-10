@@ -20,7 +20,6 @@ const ACTION: Record<string, { label: string; tone: BadgeTone }> = {
   client_blocked: { label: "Client blocked", tone: "danger" },
   client_unblocked: { label: "Client unblocked", tone: "success" },
   renew_contact_set: { label: "Renewal message changed", tone: "neutral" },
-  test_client_deleted: { label: "Test client deleted", tone: "warning" },
 };
 
 export function actionInfo(action: string): { label: string; tone: BadgeTone } {

@@ -3,7 +3,6 @@ import {
   AdminInputError,
   GENERIC_ERROR,
   createClientAccount,
-  deleteTestClient,
   extendMembership,
   filterClients,
   formatIST,
@@ -32,7 +31,6 @@ const input = {
   notes: "",
   expiresOn: "2027-01-31",
   pcLimit: 2,
-  isTest: false,
 };
 
 async function setup() {
@@ -82,10 +80,9 @@ describe("createClientAccount", () => {
 describe("updateClientDetails / setPcLimit / setExpiryDate", () => {
   it("updates details and audits", async () => {
     const { repo, id } = await setup();
-    await updateClientDetails(repo, id, { name: "New", isTest: true });
+    await updateClientDetails(repo, id, { name: "New" });
     const c = (await repo.getClient(id))!;
     expect(c.name).toBe("New");
-    expect(c.isTest).toBe(true);
     expect(await adminRows(repo, id)).toHaveLength(2);
   });
   it("sets pc limit within 1-100 only", async () => {
@@ -238,16 +235,6 @@ describe("block / devices / delete / settings", () => {
       rows.some((x) => x.action === "device_removed" && x.actor === "admin"),
     ).toBe(true);
   });
-  it("deleteTestClient refuses real clients and deletes test ones", async () => {
-    const { repo, id } = await setup();
-    await expect(deleteTestClient(repo, id)).rejects.toThrow();
-    expect(await repo.getClient(id)).not.toBeNull();
-    await updateClientDetails(repo, id, { isTest: true });
-    await deleteTestClient(repo, id);
-    expect(await repo.getClient(id)).toBeNull();
-    const all = await repo.listAudit({ limit: 50 });
-    expect(all.some((x) => x.action === "test_client_deleted")).toBe(true);
-  });
   it("sets renew contact with a 500 char cap", async () => {
     const repo = createMemoryRepo();
     await setRenewContact(repo, "  Call 99999  ");
@@ -267,7 +254,6 @@ describe("filterClients", () => {
     expiresAt: now,
     pcLimit: 1,
     blocked: false,
-    isTest: false,
     createdAt: now,
   };
   const day = 86_400_000;
@@ -291,7 +277,6 @@ describe("filterClients", () => {
     mk("blk", { expiresAt: new Date(now.getTime() + 30 * day), blocked: true }),
     mk("tst", {
       expiresAt: new Date(now.getTime() + 30 * day),
-      isTest: true,
       username: "Zed",
     }),
   ];
@@ -302,10 +287,9 @@ describe("filterClients", () => {
       "edge",
     ]);
   });
-  it("expired / blocked / test / all", () => {
+  it("expired / blocked / all", () => {
     expect(ids(filterClients(list, "", "expired", now))).toEqual(["gone"]);
     expect(ids(filterClients(list, "", "blocked", now))).toEqual(["blk"]);
-    expect(ids(filterClients(list, "", "test", now))).toEqual(["tst"]);
     expect(filterClients(list, "", "all", now)).toHaveLength(6);
   });
   it("searches name, phone and username case-insensitively", () => {
@@ -328,7 +312,6 @@ describe("AdminInputError", () => {
       setCredentials(repo, id, "a b", "longenough"),
       setCredentials(repo, id, "good.name", "short"),
       setRenewContact(repo, "x".repeat(501)),
-      deleteTestClient(repo, id),
       setBlocked(repo, "not-a-uuid", true),
       setBlocked(repo, "00000000-0000-4000-8000-000000000000", true),
       removeClientDevice(repo, "nope", now, id),

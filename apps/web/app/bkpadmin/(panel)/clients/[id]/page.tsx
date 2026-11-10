@@ -10,7 +10,6 @@ import { createSupabaseRepo } from "../../../../../lib/server/repo-supabase";
 import {
   blockAction,
   credentialsAction,
-  deleteClientAction,
   extendAction,
   pcLimitAction,
   setExpiryAction,
@@ -27,7 +26,6 @@ import { CodeGenerator } from "./CodeGenerator";
 import { DevicesCard, type DeviceRow } from "./DevicesCard";
 import { requireAdmin } from "../../../../../lib/server/admin-session";
 import {
-  Badge,
   Button,
   Card,
   CardHeader,
@@ -39,7 +37,6 @@ import {
   PasswordInput,
   StatusBadge,
   Stepper,
-  Switch,
   Textarea,
 } from "../../../ui";
 
@@ -102,12 +99,7 @@ export default async function ClientPage({
       <PageHeader
         back={{ href: "/bkpadmin", label: "Clients" }}
         title={client.name}
-        meta={
-          <>
-            <StatusBadge status={status} />
-            {client.isTest ? <Badge tone="accent">Test</Badge> : null}
-          </>
-        }
+        meta={<StatusBadge status={status} />}
         subtitle={`Membership ends ${formatDate(client.expiresAt)} · ${pcsUsed} of ${client.pcLimit} PCs in use`}
         actions={
           <>
@@ -163,19 +155,7 @@ export default async function ClientPage({
                     maxLength={40}
                   />
                 </Field>
-                <div className="gx-field gx-field--switch">
-                  <span className="gx-label">Account type</span>
-                  <Switch
-                    name="isTest"
-                    label="Test client"
-                    defaultChecked={client.isTest}
-                  />
-                </div>
-                <Field
-                  label="Notes"
-                  htmlFor="d-notes"
-                  className="gx-grid-2__full"
-                >
+                <Field label="Notes" htmlFor="d-notes">
                   <Textarea
                     id="d-notes"
                     name="notes"
@@ -358,23 +338,6 @@ export default async function ClientPage({
               <p className="gx-muted">Nothing yet.</p>
             )}
           </Card>
-
-          {client.isTest ? (
-            <Card className="gx-danger-zone">
-              <CardHeader
-                title="Delete test client"
-                description="Removes this test client, its login, codes and PCs. Real clients can't be deleted."
-              />
-              <ConfirmForm
-                action={deleteClientAction}
-                fields={{ id }}
-                trigger="Delete test client"
-                title="Delete this test client?"
-                description="This permanently removes the client, its login, codes, PCs and history links."
-                confirmLabel="Delete"
-              />
-            </Card>
-          ) : null}
         </div>
       </div>
     </div>

@@ -34,7 +34,6 @@ function toClient(r: Row): ClientRecord {
     expiresAt: date(r.expires_at),
     pcLimit: Number(r.pc_limit),
     blocked: Boolean(r.blocked),
-    isTest: Boolean(r.is_test),
     createdAt: date(r.created_at),
   };
 }
@@ -311,7 +310,6 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
           expires_at: iso(c.expiresAt),
           pc_limit: c.pcLimit,
           blocked: c.blocked,
-          is_test: c.isTest,
         })
         .select("id")
         .single();
@@ -329,14 +327,8 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
       if (patch.expiresAt !== undefined) row.expires_at = iso(patch.expiresAt);
       if (patch.pcLimit !== undefined) row.pc_limit = patch.pcLimit;
       if (patch.blocked !== undefined) row.blocked = patch.blocked;
-      if (patch.isTest !== undefined) row.is_test = patch.isTest;
       const { error } = await db.from("clients").update(row).eq("id", id);
       if (error) fail("updateClient", error);
-    },
-
-    async deleteClient(id) {
-      const { error } = await db.from("clients").delete().eq("id", id);
-      if (error) fail("deleteClient", error);
     },
 
     async setLogin(clientId, username, passwordHash) {

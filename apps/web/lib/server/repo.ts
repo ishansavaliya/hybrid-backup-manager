@@ -9,7 +9,6 @@ export interface ClientRecord {
   expiresAt: Date;
   pcLimit: number;
   blocked: boolean;
-  isTest: boolean;
   createdAt: Date;
 }
 
@@ -108,7 +107,6 @@ export interface Repo {
   listClients(): Promise<ClientSummary[]>;
   createClient(c: ClientInput): Promise<string>;
   updateClient(id: string, patch: Partial<ClientInput>): Promise<void>;
-  deleteClient(id: string): Promise<void>;
   setLogin(
     clientId: string,
     username: string,

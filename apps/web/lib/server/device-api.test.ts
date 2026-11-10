@@ -45,7 +45,6 @@ function client(over: Partial<ClientRecord> = {}): ClientRecord {
     expiresAt: new Date("2027-01-01T00:00:00.000Z"),
     pcLimit: 1,
     blocked: false,
-    isTest: false,
     createdAt: now,
     ...over,
   };

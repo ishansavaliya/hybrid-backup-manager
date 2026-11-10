@@ -35,7 +35,7 @@ export const MAX_RENEW_CONTACT = 500;
 const CODE_ATTEMPTS = 5;
 const MIN_PASSWORD = 8;
 
-export type ClientFilter = "all" | "expiring" | "expired" | "blocked" | "test";
+export type ClientFilter = "all" | "expiring" | "expired" | "blocked";
 
 export interface NewClientInput {
   name: string;
@@ -44,7 +44,6 @@ export interface NewClientInput {
   notes: string;
   expiresOn: string;
   pcLimit: number;
-  isTest: boolean;
 }
 
 export interface ClientDetailsPatch {
@@ -52,7 +51,6 @@ export interface ClientDetailsPatch {
   contactPerson?: string;
   phone?: string;
   notes?: string;
-  isTest?: boolean;
 }
 
 /** Accepts only a real calendar date written exactly as YYYY-MM-DD. */
@@ -106,7 +104,6 @@ export async function createClientAccount(
     expiresAt,
     pcLimit: input.pcLimit,
     blocked: false,
-    isTest: input.isTest,
   });
   await repo.audit({
     actor: "admin",
@@ -133,7 +130,6 @@ export async function updateClientDetails(
     clean.contactPerson = patch.contactPerson.trim();
   if (patch.phone !== undefined) clean.phone = patch.phone.trim();
   if (patch.notes !== undefined) clean.notes = patch.notes.trim();
-  if (patch.isTest !== undefined) clean.isTest = patch.isTest;
   await repo.updateClient(id, clean);
   await repo.audit({
     actor: "admin",
@@ -316,18 +312,6 @@ export async function removeClientDevice(
   });
 }
 
-export async function deleteTestClient(repo: Repo, id: string): Promise<void> {
-  const client = await mustGetClient(repo, id);
-  if (!client.isTest)
-    throw new AdminInputError("Only test clients can be deleted");
-  await repo.deleteClient(id);
-  await repo.audit({
-    actor: "admin",
-    action: "test_client_deleted",
-    details: { name: client.name },
-  });
-}
-
 export async function setRenewContact(repo: Repo, text: string): Promise<void> {
   const value = text.trim();
   if (value.length > MAX_RENEW_CONTACT) {
@@ -361,8 +345,6 @@ export function filterClients(
         return remaining < 0;
       case "blocked":
         return c.blocked;
-      case "test":
-        return c.isTest;
       default:
         return true;
     }

@@ -288,21 +288,6 @@ export function createMemoryRepo(seed?: {
       }
     },
 
-    async deleteClient(id) {
-      clients.delete(id);
-      logins.delete(id);
-      for (const [cid, c] of codes) if (c.clientId === id) codes.delete(cid);
-      for (let i = devices.length - 1; i >= 0; i--) {
-        const d = devices[i]!;
-        if (d.clientId !== id) continue;
-        devices.splice(i, 1);
-        for (let j = tokens.length - 1; j >= 0; j--) {
-          if (tokens[j]!.deviceId === d.id) tokens.splice(j, 1);
-        }
-      }
-      for (const r of auditRows) if (r.clientId === id) r.clientId = undefined;
-    },
-
     async setLogin(clientId, username, passwordHash) {
       const lower = username.toLowerCase();
       for (const [cid, l] of logins) {

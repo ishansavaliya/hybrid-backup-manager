@@ -4,16 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { createClientFormAction, type FormState } from "../actions";
-import {
-  Button,
-  Dialog,
-  Field,
-  Input,
-  Notice,
-  Stepper,
-  Switch,
-  Textarea,
-} from "../ui";
+import { Button, Dialog, Field, Input, Notice, Stepper, Textarea } from "../ui";
 
 /** `YYYY-MM-DD` in India time, `months` from today. */
 function istDatePlus(months: number): string {
@@ -96,6 +87,18 @@ export function NewClientDialog() {
                 />
               </Field>
               <Field
+                label="PC limit"
+                htmlFor="nc-pcs"
+                hint="How many computers this client may use."
+              >
+                <Stepper
+                  id="nc-pcs"
+                  name="pcLimit"
+                  defaultValue={1}
+                  ariaDescribedBy="nc-pcs-hint"
+                />
+              </Field>
+              <Field
                 label="Membership ends on"
                 htmlFor="nc-expires"
                 required
@@ -125,32 +128,11 @@ export function NewClientDialog() {
                   ))}
                 </div>
               </Field>
-              <Field
-                label="PC limit"
-                htmlFor="nc-pcs"
-                hint="How many computers this client may use."
-              >
-                <Stepper
-                  id="nc-pcs"
-                  name="pcLimit"
-                  defaultValue={1}
-                  ariaDescribedBy="nc-pcs-hint"
-                />
-              </Field>
-              <div className="gx-field gx-field--switch">
-                <span className="gx-label">Account type</span>
-                <Switch name="isTest" label="Test client" />
-                <p className="gx-hint">Test clients can be deleted later.</p>
-              </div>
-              <Field
-                label="Notes"
-                htmlFor="nc-notes"
-                className="gx-grid-2__full"
-              >
+              <Field label="Notes" htmlFor="nc-notes">
                 <Textarea
                   id="nc-notes"
                   name="notes"
-                  rows={2}
+                  rows={4}
                   maxLength={2000}
                   placeholder="Only visible to you"
                 />

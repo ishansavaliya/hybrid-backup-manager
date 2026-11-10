@@ -26,7 +26,6 @@ function client(over: Partial<ClientRecord> = {}): ClientRecord {
     expiresAt: new Date("2027-01-01T00:00:00Z"),
     pcLimit: 1,
     blocked: false,
-    isTest: false,
     createdAt: NOW,
     ...over,
   };
@@ -323,9 +322,6 @@ describe("logins and clients", () => {
       name: "Renamed",
       blocked: true,
     });
-    await repo.deleteClient("c1");
-    expect(await repo.getClient("c1")).toBeNull();
-    expect(await repo.findLogin("bob")).toBeNull();
   });
 
   it("createClient returns an id", async () => {

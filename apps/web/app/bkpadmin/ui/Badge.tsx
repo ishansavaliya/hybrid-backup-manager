@@ -26,21 +26,19 @@ export function Badge({
   );
 }
 
-export type ClientStatus =
-  "active" | "expiring" | "expired" | "blocked" | "test";
+export type ClientStatus = "active" | "expiring" | "expired" | "blocked";
 
 const STATUS: Record<ClientStatus, { tone: BadgeTone; label: string }> = {
   active: { tone: "success", label: "Active" },
   expiring: { tone: "warning", label: "Expiring" },
   expired: { tone: "danger", label: "Expired" },
   blocked: { tone: "danger", label: "Blocked" },
-  test: { tone: "accent", label: "Test" },
 };
 
 export function StatusBadge({ status }: { status: ClientStatus }) {
   const { tone, label } = STATUS[status];
   return (
-    <Badge tone={tone} dot={status !== "test"}>
+    <Badge tone={tone} dot>
       {label}
     </Badge>
   );

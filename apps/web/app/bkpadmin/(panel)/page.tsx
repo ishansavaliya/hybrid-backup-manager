@@ -18,7 +18,7 @@ import { NewClientDialog } from "./NewClientDialog";
 
 export const dynamic = "force-dynamic";
 
-const FILTER_KEYS: ClientFilter[] = ["expiring", "expired", "blocked", "test"];
+const FILTER_KEYS: ClientFilter[] = ["expiring", "expired", "blocked"];
 
 function expiresHint(expiresAt: Date, now: Date): string {
   const left = daysLeft(expiresAt, now);
@@ -60,7 +60,6 @@ export default async function ClientsPage({
     contactPerson: c.contactPerson,
     phone: c.phone,
     username: c.username ?? "",
-    isTest: c.isTest,
     status: membershipStatus(c, now),
     expiresAt: c.expiresAt.toISOString(),
     expiresLabel: formatDate(c.expiresAt),
