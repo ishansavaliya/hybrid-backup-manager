@@ -1,18 +1,9 @@
 import { useState } from "react";
-import { Button, Card } from "@bakvion/ui";
+import { LogOut, RefreshCw } from "lucide-react";
 import type { AccountStatus } from "@bakvion/shared-types";
-import { pluralDays } from "./messages";
-
-function lastSynced(s: AccountStatus): string {
-  if (!s.lastSyncAt) return "never";
-  if (s.daysSinceSync <= 0) return "today";
-  return s.daysSinceSync === 1 ? "1 day ago" : `${s.daysSinceSync} days ago`;
-}
-const modeLabel = {
-  full: "Active",
-  restore_only: "Restore only",
-  signed_out: "Signed out",
-} as const;
+import { GxDialog } from "@bakvion/ui/gx";
+import { useI18n } from "../i18n";
+import { Badge, Button, Card, CardHeader, Notice } from "../ui";
 
 export function AccountPanel({
   status,
@@ -25,6 +16,8 @@ export function AccountPanel({
   onSync: () => Promise<boolean>;
   onSignOut: () => Promise<boolean>;
 }) {
+  const { t, daysAgo, days, date } = useI18n();
+  const s = t.settings;
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   async function run(fn: () => Promise<boolean>) {
@@ -36,54 +29,96 @@ export function AccountPanel({
       setConfirming(false);
     }
   }
+  const lastSynced = !status.lastSyncAt
+    ? t.common.never
+    : daysAgo(status.daysSinceSync);
+  const mode =
+    status.mode === "full"
+      ? { tone: "success" as const, label: s.modeFull }
+      : status.mode === "restore_only"
+        ? { tone: "warning" as const, label: s.modeRestore }
+        : { tone: "neutral" as const, label: s.modeSignedOut };
   return (
     <Card>
-      <h2>Account</h2>
-      <div className="stack">
-        {status.clientName && <div>Client: {status.clientName}</div>}
-        <div>Membership: {modeLabel[status.mode]}</div>
-        {status.expiresAt && (
-          <div>
-            Expires: {new Date(status.expiresAt).toLocaleDateString()}
-            {status.mode === "full" && ` (${pluralDays(status.daysLeft)} left)`}
-          </div>
-        )}
-        <div>Last synced: {lastSynced(status)}</div>
-        <div className="muted">Version {status.appVersion}</div>
-        {error && (
-          <div className="error" role="alert">
-            {error}
-          </div>
-        )}
-        <div className="row">
+      <CardHeader
+        title={s.account}
+        actions={
           <Button
-            className="secondary"
+            variant="secondary"
+            size="sm"
             disabled={busy}
             onClick={() => void run(onSync)}
           >
-            Sync now
+            <RefreshCw size={14} aria-hidden="true" />
+            {t.common.syncNow}
           </Button>
-          {status.signedIn &&
-            (confirming ? (
-              <>
-                <span>Sign out of this PC? Existing backups stay on disk.</span>
-                <Button disabled={busy} onClick={() => void run(onSignOut)}>
-                  Confirm sign out
-                </Button>
-                <Button
-                  className="secondary"
-                  onClick={() => setConfirming(false)}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button className="secondary" onClick={() => setConfirming(true)}>
-                Sign out
-              </Button>
-            ))}
+        }
+      />
+      <dl className="gx-kv-list">
+        {status.clientName ? (
+          <div>
+            <dt>{s.client}</dt>
+            <dd>{status.clientName}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{s.mode}</dt>
+          <dd>
+            <Badge tone={mode.tone} dot>
+              {mode.label}
+            </Badge>
+          </dd>
         </div>
-      </div>
+        {status.expiresAt ? (
+          <div>
+            <dt>{s.expires}</dt>
+            <dd>
+              {date(status.expiresAt)}
+              {status.mode === "full" ? ` · ${days(status.daysLeft)}` : ""}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{s.lastSync}</dt>
+          <dd>{lastSynced}</dd>
+        </div>
+        <div>
+          <dt>{s.version}</dt>
+          <dd>{status.appVersion}</dd>
+        </div>
+      </dl>
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {status.signedIn ? (
+        <div className="gx-form__actions" style={{ marginTop: 14 }}>
+          <Button variant="ghost" onClick={() => setConfirming(true)}>
+            <LogOut size={15} aria-hidden="true" />
+            {t.common.signOut}
+          </Button>
+        </div>
+      ) : null}
+      <GxDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={s.signOutTitle}
+        closeLabel={t.common.close}
+        width={440}
+      >
+        <div className="gx-dialog__body">
+          <p className="gx-muted">{s.signOutBody}</p>
+        </div>
+        <footer className="gx-dialog__foot">
+          <Button variant="secondary" onClick={() => setConfirming(false)}>
+            {t.common.cancel}
+          </Button>
+          <Button
+            variant="danger"
+            disabled={busy}
+            onClick={() => void run(onSignOut)}
+          >
+            {t.common.signOut}
+          </Button>
+        </footer>
+      </GxDialog>
     </Card>
   );
 }

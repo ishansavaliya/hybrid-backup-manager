@@ -1,30 +1,29 @@
 import { useState } from "react";
-import { Badge } from "@bakvion/ui";
 import type { AccountStatus } from "@bakvion/shared-types";
-import { pluralDays } from "./messages";
+import { format, useI18n } from "../i18n";
+import { Badge } from "../ui";
 
 export function MembershipBadge({ status }: { status: AccountStatus }) {
+  const { t, days } = useI18n();
   const [open, setOpen] = useState(false);
   if (status.mode !== "full" || !status.showBadge) return null;
   return (
-    <>
+    <span className="gx-rel">
       <button
         type="button"
-        className="badge-button"
+        className="gx-badge-btn"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <Badge tone="warning">
-          {`Membership expires in ${pluralDays(status.daysLeft)} — please renew`}
+        <Badge tone="warning" dot>
+          {format(t.membership.badge, { days: days(status.daysLeft) })}
         </Badge>
       </button>
-      {open && (
-        <span className="muted" role="status">
-          {status.renewContact
-            ? `To renew, contact ${status.renewContact}`
-            : "Contact your Bakvion provider to renew."}
+      {open ? (
+        <span className="gx-popover" role="status">
+          {status.renewContact || t.membership.contact}
         </span>
-      )}
-    </>
+      ) : null}
+    </span>
   );
 }

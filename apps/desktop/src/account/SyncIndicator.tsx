@@ -1,12 +1,13 @@
-import { Badge } from "@bakvion/ui";
 import type { AccountStatus } from "@bakvion/shared-types";
-import { pluralDays } from "./messages";
+import { format, useI18n } from "../i18n";
+import { Badge } from "../ui";
 
 export function SyncIndicator({ status }: { status: AccountStatus }) {
+  const { t, days } = useI18n();
   if (!status.syncWarning) return null;
   return (
     <Badge tone="warning">
-      {`Not synced for ${pluralDays(status.daysSinceSync)} — connect to the internet`}
+      {format(t.membership.syncWarning, { days: days(status.daysSinceSync) })}
     </Badge>
   );
 }

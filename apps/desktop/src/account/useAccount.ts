@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AccountStatus, SignInParams } from "@bakvion/shared-types";
-import { AgentRequestError, request } from "../api";
-import { errorMessage } from "./messages";
+import { request } from "../api";
+import { toAppError, type AppError } from "./messages";
 
 const POLL_MS = 60_000;
-function describe(e: unknown): string {
-  if (e instanceof AgentRequestError) return errorMessage(e.code, e.message);
-  return e instanceof Error ? e.message : String(e);
-}
 export function useAccount() {
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
   const reload = useCallback(async () => {
     try {
       setStatus(await request<AccountStatus>("accountStatus"));
@@ -28,14 +24,14 @@ export function useAccount() {
     return () => clearInterval(timer);
   }, [reload]);
   async function run(method: string, params?: unknown): Promise<boolean> {
-    setError("");
+    setError(null);
     try {
       const result = await request<AccountStatus | true>(method, params);
       if (typeof result === "object") setStatus(result);
       else await reload();
       return true;
     } catch (e) {
-      setError(describe(e));
+      setError(toAppError(e));
       return false;
     }
   }

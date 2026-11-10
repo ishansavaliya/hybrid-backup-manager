@@ -1,23 +1,28 @@
-const messages: Record<string, string> = {
-  INVALID_CREDENTIALS: "Wrong username or password.",
-  CODE_INVALID:
-    "This code is wrong, already used, or expired. Ask your Bakvion provider for a new one.",
-  PC_LIMIT: "Your plan's PC limit is reached. Contact your Bakvion provider.",
-  RATE_LIMITED: "Too many attempts. Wait 15 minutes and try again.",
-  OFFLINE: "No internet connection. Connect to the internet and try again.",
-  MEMBERSHIP_INACTIVE:
-    "Your membership is not active. You can still restore existing backups.",
-  DEVICE_REMOVED: "This PC was removed from your account. Sign in again.",
-};
-export function errorMessage(code: string, agentMessage: string): string {
-  // PC_LIMIT text comes from the server ("Your plan allows N PCs. ..."), passed
-  // through by the agent; it sends the bare code when the server gave none.
-  if (code === "PC_LIMIT") {
-    const text = agentMessage.trim();
-    if (text !== "" && text.toUpperCase() !== code) return text;
-  }
-  return messages[code] ?? agentMessage;
+import type { AppText } from "../i18n";
+
+export interface AppError {
+  code: string;
+  message: string;
 }
-export function pluralDays(n: number): string {
-  return n === 1 ? "1 day" : `${n} days`;
+
+/** Turns an agent/service error into text in the chosen language. */
+export function errorText(t: AppText, e: AppError | null): string {
+  if (!e) return "";
+  if (e.code === "NO_RUNTIME") return t.disconnected.runtime;
+  // PC_LIMIT text comes from the server ("Your plan allows N PCs. ...").
+  if (e.code === "PC_LIMIT") {
+    const text = e.message.trim();
+    if (text !== "" && text.toUpperCase() !== e.code) return text;
+  }
+  const known = (t.errors as Record<string, string>)[e.code];
+  return known ?? e.message;
+}
+
+export function toAppError(e: unknown): AppError {
+  if (e && typeof e === "object" && "code" in e && "message" in e)
+    return {
+      code: String((e as { code: unknown }).code),
+      message: String((e as { message: unknown }).message),
+    };
+  return { code: "", message: e instanceof Error ? e.message : String(e) };
 }

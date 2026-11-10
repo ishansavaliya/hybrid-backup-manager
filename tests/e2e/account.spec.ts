@@ -118,7 +118,7 @@ test("password sign-in sends username and password", async ({ page }) => {
   await mock(page, { status: signedOut });
   await page.goto("/");
   await page.getByLabel("Username", { exact: true }).fill("acme");
-  const pw = page.getByLabel("Password");
+  const pw = page.getByLabel("Password", { exact: true });
   await expect(pw).toHaveAttribute("type", "password");
   await pw.fill("secret-pass");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -158,7 +158,7 @@ test("PC_LIMIT shows the server's message", async ({ page }) => {
   });
   await page.goto("/");
   await page.getByLabel("Username", { exact: true }).fill("acme");
-  await page.getByLabel("Password").fill("secret-pass");
+  await page.getByLabel("Password", { exact: true }).fill("secret-pass");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "Your plan allows 2 PCs. Contact your Bakvion provider.",
@@ -174,7 +174,7 @@ test("PC_LIMIT without a server message shows the generic text", async ({
   });
   await page.goto("/");
   await page.getByLabel("Username", { exact: true }).fill("acme");
-  await page.getByLabel("Password").fill("secret-pass");
+  await page.getByLabel("Password", { exact: true }).fill("secret-pass");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "Your plan's PC limit is reached. Contact your Bakvion provider.",
@@ -247,9 +247,9 @@ test("restore-only blocks new backups but Recovery works", async ({ page }) => {
   ).toBeDisabled();
   await page.getByRole("button", { name: "Backup plans", exact: true }).click();
   await expect(page.getByRole("button", { name: "Run backup" })).toBeDisabled();
-  await page.getByRole("button", { name: "Recovery", exact: true }).click();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Recovery", exact: true }),
+    page.getByRole("heading", { name: "Restore", exact: true }),
   ).toBeVisible();
 });
 
@@ -284,7 +284,8 @@ test("settings shows last sync and Sync now refreshes the licence", async ({
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByText("Last synced: 4 days ago")).toBeVisible();
+  await expect(page.getByText("Last synced", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 days ago", { exact: true })).toBeVisible();
   await expect(page.getByText("Acme Traders")).toBeVisible();
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect
@@ -345,4 +346,37 @@ test("expert enquiry offline keeps the form with an error", async ({
     "No internet connection",
   );
   await expect(dialog.getByLabel("Business name")).toHaveValue("Mehta Traders");
+});
+
+test("language switch shows Gujarati and Hindi and remembers the choice", async ({
+  page,
+}) => {
+  await mock(page, { status: base, plans: [plan] });
+  await page.goto("/");
+  await page.getByRole("button", { name: "ગુ" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: "તમારી સુરક્ષા, એક નજરમાં" }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "તમારી સુરક્ષા, એક નજરમાં" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "हि" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: "आपकी सुरक्षा, एक नज़र में" }),
+  ).toBeVisible();
+});
+
+test("theme follows Windows dark mode until the user chooses", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({ colorScheme: "dark" });
+  const page = await ctx.newPage();
+  await mock(page, { status: base });
+  await page.goto("/");
+  await expect(page.locator(".gx")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(page.locator(".gx")).toHaveAttribute("data-theme", "light");
+  await ctx.close();
 });

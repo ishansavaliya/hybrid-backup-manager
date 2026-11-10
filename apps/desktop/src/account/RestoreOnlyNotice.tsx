@@ -1,16 +1,8 @@
 import { useState } from "react";
-import { Button } from "@bakvion/ui";
+import { CircleAlert, RefreshCw } from "lucide-react";
 import type { AccountStatus } from "@bakvion/shared-types";
-
-const reasons: Record<string, string> = {
-  expired: "Your membership has expired.",
-  blocked: "Your account is paused.",
-  clock:
-    "Your PC's date and time look wrong. Correct them in Windows Settings, then click Sync now.",
-  pc_limit:
-    "This PC is not active because your plan's PC limit is reached. Remove another PC or contact your Bakvion provider.",
-  signed_out: "You are signed out.",
-};
+import { useI18n } from "../i18n";
+import { Button } from "../ui";
 
 export function RestoreOnlyNotice({
   status,
@@ -23,6 +15,15 @@ export function RestoreOnlyNotice({
   onSync: () => Promise<boolean>;
   onSignIn: () => void;
 }) {
+  const { t } = useI18n();
+  const n = t.notice;
+  const reasons: Record<string, string> = {
+    expired: n.expired,
+    blocked: n.blocked,
+    clock: n.clock,
+    pc_limit: n.pcLimit,
+    signed_out: n.signedOut,
+  };
   const [syncing, setSyncing] = useState(false);
   async function sync() {
     setSyncing(true);
@@ -33,24 +34,31 @@ export function RestoreOnlyNotice({
     }
   }
   return (
-    <div className="notice" role="status">
-      <strong>{reasons[status.reason] ?? "Backups are paused."}</strong>
-      <p>
-        New backups are paused. You can still restore your existing backups.
-        {status.renewContact && ` Contact ${status.renewContact} to renew.`}
-      </p>
-      {error && <p role="alert">{error}</p>}
-      <div className="row">
+    <div className="gx-restore-notice" role="status">
+      <CircleAlert size={20} aria-hidden="true" />
+      <div className="gx-restore-notice__text">
+        <strong>{reasons[status.reason] ?? n.restoreOk}</strong>
+        <p>
+          {n.restoreOk}
+          {status.renewContact ? ` ${status.renewContact}` : ""}
+        </p>
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+      <div className="gx-restore-notice__actions">
         <Button
-          className="secondary"
+          variant="secondary"
+          size="sm"
           disabled={syncing}
           onClick={() => void sync()}
         >
-          Sync now
+          <RefreshCw size={14} aria-hidden="true" />
+          {syncing ? t.common.syncing : t.common.syncNow}
         </Button>
-        {status.mode === "signed_out" && (
-          <Button onClick={onSignIn}>Sign in</Button>
-        )}
+        {status.mode === "signed_out" ? (
+          <Button size="sm" onClick={onSignIn}>
+            {t.common.signIn}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

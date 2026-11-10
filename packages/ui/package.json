@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.tsx",
     "./styles.css": "./src/styles.css",
-    "./graphite.css": "./src/graphite.css"
+    "./graphite.css": "./src/graphite.css",
+    "./gx": "./src/gx.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -15,7 +16,8 @@
     "react": "^19.2.0",
     "lucide-react": "^0.468.0",
     "@radix-ui/react-dialog": "^1.1.15",
-    "clsx": "^2.1.1"
+    "clsx": "^2.1.1",
+    "@radix-ui/react-select": "^2.4.1"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

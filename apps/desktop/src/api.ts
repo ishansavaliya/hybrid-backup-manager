@@ -9,7 +9,8 @@ export class AgentRequestError extends Error {
 }
 export async function request<T>(method: string, params?: unknown): Promise<T> {
   if (!("__TAURI_INTERNALS__" in window))
-    throw new Error(
+    throw new AgentRequestError(
+      "NO_RUNTIME",
       "Windows desktop runtime required. This browser view has no access to the backup service.",
     );
   const { invoke } = await import("@tauri-apps/api/core");
