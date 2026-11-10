@@ -8,6 +8,7 @@ import { serverEnv } from "../../../lib/server/env";
 import { daysLeft, membershipStatus } from "../../../lib/server/membership";
 import { createSupabaseRepo } from "../../../lib/server/repo-supabase";
 import { formatDate, formatDateTime, STATUS_TONE } from "./format";
+import { requireAdmin } from "../../../lib/server/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
+  await requireAdmin();
   const params = await searchParams;
   const q = params.q ?? "";
   const filter = FILTERS.some((f) => f.key === params.filter)

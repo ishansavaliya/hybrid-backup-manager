@@ -25,6 +25,7 @@ import {
 } from "../../format";
 import { CodeGenerator } from "./CodeGenerator";
 import { DevicesCard } from "./DevicesCard";
+import { requireAdmin } from "../../../../../lib/server/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function ClientPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  await requireAdmin();
   const { id } = await params;
   const { error, ok } = await searchParams;
   if (!isUuid(id)) notFound();

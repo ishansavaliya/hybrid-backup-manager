@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Button, Card } from "@bakvion/ui";
+import { isUuid } from "../../../../lib/server/admin-service";
 import { serverEnv } from "../../../../lib/server/env";
 import { createSupabaseRepo } from "../../../../lib/server/repo-supabase";
 import { formatDateTime } from "../format";
+import { requireAdmin } from "../../../../lib/server/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +13,14 @@ export default async function HistoryPage({
 }: {
   searchParams: Promise<{ client?: string }>;
 }) {
-  const { client } = await searchParams;
+  await requireAdmin();
+  const { client: rawClient } = await searchParams;
+  // Ignore anything that is not a client id (e.g. a hand-edited URL).
+  const client =
+    typeof rawClient === "string" && isUuid(rawClient) ? rawClient : undefined;
   const repo = createSupabaseRepo(serverEnv());
   const [rows, clients] = await Promise.all([
-    repo.listAudit({ clientId: client || undefined, limit: 200 }),
+    repo.listAudit({ clientId: client, limit: 200 }),
     repo.listClients(),
   ]);
   const names = new Map(clients.map((c) => [c.id, c.name]));

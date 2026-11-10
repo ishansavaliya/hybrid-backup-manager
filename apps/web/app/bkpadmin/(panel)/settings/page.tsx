@@ -3,6 +3,7 @@ import { MAX_RENEW_CONTACT } from "../../../../lib/server/admin-service";
 import { serverEnv } from "../../../../lib/server/env";
 import { createSupabaseRepo } from "../../../../lib/server/repo-supabase";
 import { renewContactAction } from "../../actions";
+import { requireAdmin } from "../../../../lib/server/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  await requireAdmin();
   const { error, ok } = await searchParams;
   const current =
     await createSupabaseRepo(serverEnv()).getSetting("renew_contact");

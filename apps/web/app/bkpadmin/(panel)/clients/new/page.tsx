@@ -1,5 +1,6 @@
 import { Button, Card } from "@bakvion/ui";
 import { createClientAction } from "../../../actions";
+import { requireAdmin } from "../../../../../lib/server/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ export default async function NewClientPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  await requireAdmin();
   const { error } = await searchParams;
   return (
     <div className="stack">
