@@ -2,8 +2,19 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// Pipe error codes. Cloud API errors use their upper-cased server code instead.
+const (
+	CodeOperationFailed    = "OPERATION_FAILED"
+	CodeMembershipInactive = "MEMBERSHIP_INACTIVE"
+	CodeOffline            = "OFFLINE"
+)
+
+// ErrMembershipInactive refuses backup-creating work while not in full mode.
+var ErrMembershipInactive = errors.New("Membership inactive: new backups are paused")
 
 type Destination struct {
 	ID           string `json:"id"`

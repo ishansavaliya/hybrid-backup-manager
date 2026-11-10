@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -17,6 +18,12 @@ import (
 type Agent struct {
 	Store  *Store
 	Engine Engine
+	// Membership (see account.go). A nil Cloud or LicenseKey leaves the agent signed out.
+	Cloud       CloudAPI
+	LicenseKey  ed25519.PublicKey
+	Clock       func() time.Time
+	AppVersion  string
+	MachineInfo func() (machine, windows string)
 }
 
 func NewID() string {
@@ -144,6 +151,13 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 	if err = json.Unmarshal([]byte(raw), &cfg); err != nil {
 		return false, err
 	}
+	if err = a.requireFull(); err != nil {
+		if !errors.Is(err, ErrMembershipInactive) {
+			return false, err
+		}
+		_, err = a.Store.DB.Exec(`UPDATE job_executions SET state='failed',finished_at=?,error=? WHERE id=?`, now(), err.Error(), id)
+		return true, err
+	}
 	if _, err = a.Store.DB.Exec(`UPDATE job_executions SET state='running',started_at=? WHERE id=?`, now(), id); err != nil {
 		return false, err
 	}
@@ -188,7 +202,7 @@ func decode(raw json.RawMessage, target any) error {
 func (a *Agent) Handle(ctx context.Context, r Request) Response {
 	result, err := a.handle(ctx, r)
 	if err != nil {
-		return Response{Version: 1, Error: &APIError{Code: "OPERATION_FAILED", Message: err.Error()}}
+		return Response{Version: 1, Error: &APIError{Code: errorCode(err), Message: err.Error()}}
 	}
 	return Response{Version: 1, Result: result}
 }
@@ -196,7 +210,14 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 	if r.Version != 1 {
 		return nil, errors.New("unsupported protocol version")
 	}
+	if gatedMethods[r.Method] {
+		if err := a.requireFull(); err != nil {
+			return nil, err
+		}
+	}
 	switch r.Method {
+	case "accountStatus", "signIn", "signOut", "refreshLicense":
+		return a.handleAccount(ctx, r)
 	case "overview":
 		plans, err := a.Store.Plans()
 		if err != nil {

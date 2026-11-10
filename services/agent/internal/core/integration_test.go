@@ -2,10 +2,12 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fixture(t *testing.T) (*Agent, Plan) {
@@ -28,7 +30,7 @@ func fixture(t *testing.T) (*Agent, Plan) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.DB.Close() })
-	a := &Agent{Store: store, Engine: Engine{Binary: binary}}
+	a := licensedAgent(t, store, Engine{Binary: binary})
 	p := Plan{ID: "test", Name: "Test", Sources: []string{source}, Exclusions: []string{}, Destinations: []Destination{{ID: "local", Name: "Local", Repository: filepath.Join(root, "repository"), PasswordFile: secret}}}
 	return a, p
 }
@@ -200,7 +202,7 @@ func TestProtocolAuthorizationBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.DB.Close()
-	a := &Agent{Store: s}
+	a := licensedAgent(t, s, Engine{})
 	for _, req := range []Request{{Version: 2, Method: "overview"}, {Version: 1, Method: "executeShell"}, {Version: 1, Method: "restore", Params: []byte(`{"planId":"unknown","destinationId":"unknown"}`)}} {
 		r := a.Handle(context.Background(), req)
 		if r.Error == nil {
@@ -406,7 +408,7 @@ func TestFutureSchemaRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.DB.Exec(`INSERT INTO schema_migrations(version) VALUES(999)`); err != nil {
+	if _, err = s.DB.Exec(`INSERT INTO schema_migrations(version) VALUES(3)`); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.DB.Close(); err != nil {
@@ -416,5 +418,66 @@ func TestFutureSchemaRejected(t *testing.T) {
 	if err == nil {
 		newer.DB.Close()
 		t.Fatal("newer schema accepted")
+	}
+}
+
+func TestRealRestoreWorksAfterMembershipExpires(t *testing.T) {
+	a, p := fixture(t)
+	ctx := context.Background()
+	write(t, filepath.Join(p.Sources[0], "kept.txt"), "still recoverable")
+	request := func(method string, params any) Response {
+		b, err := json.Marshal(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a.Handle(ctx, Request{Version: 1, Method: method, Params: b})
+	}
+	target := map[string]string{"planId": p.ID, "destinationId": "local"}
+	for _, step := range []struct {
+		method string
+		params any
+	}{{"savePlan", p}, {"initRepository", target}, {"startBackup", map[string]string{"planId": p.ID}}} {
+		if r := request(step.method, step.params); r.Error != nil {
+			t.Fatalf("%s: %+v", step.method, r.Error)
+		}
+	}
+	if err := a.Work(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := a.Store.Executions()
+	if err != nil || len(jobs) != 1 || jobs[0].State != "succeeded" {
+		t.Fatalf("licensed backup: %+v %v", jobs, err)
+	}
+	// Two years later the license has expired: backups stop, recovery keeps working.
+	a.Clock = func() time.Time { return time.Now().Add(2 * 365 * 24 * time.Hour) }
+	if r := request("startBackup", map[string]string{"planId": p.ID}); r.Error == nil || r.Error.Code != "MEMBERSHIP_INACTIVE" {
+		t.Fatalf("expired startBackup: %+v", r.Error)
+	}
+	if r := request("snapshots", target); r.Error != nil {
+		t.Fatalf("snapshots: %+v", r.Error)
+	}
+	if r := request("check", target); r.Error != nil {
+		t.Fatalf("check: %+v", r.Error)
+	}
+	recovered := filepath.Join(filepath.Dir(p.Sources[0]), "recovered-after-expiry")
+	r := request("restore", map[string]string{"planId": p.ID, "destinationId": "local", "snapshotId": jobs[0].SnapshotID, "target": recovered})
+	if r.Error != nil {
+		t.Fatalf("restore: %+v", r.Error)
+	}
+	found := false
+	if err = filepath.WalkDir(recovered, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.Name() == "kept.txt" {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			found = string(b) == "still recoverable"
+		}
+		return nil
+	}); err != nil || !found {
+		t.Fatalf("restored content missing: %v", err)
 	}
 }

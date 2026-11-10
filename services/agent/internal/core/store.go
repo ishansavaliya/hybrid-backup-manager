@@ -8,10 +8,14 @@ import (
 	_ "modernc.org/sqlite"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 //go:embed migrations/001_foundation.sql
 var initialSchema string
+
+//go:embed migrations/002_account.sql
+var accountSchema string
 
 type Store struct {
 	DB   *sql.DB
@@ -116,16 +120,76 @@ func (s *Store) migrate() error {
 	if err = tx.QueryRow(`SELECT COALESCE(MAX(version),0) FROM schema_migrations`).Scan(&version); err != nil {
 		return err
 	}
-	if version > 1 {
+	// migrations[i] upgrades the schema from version i to i+1.
+	migrations := []string{initialSchema, accountSchema}
+	if version > len(migrations) {
 		return fmt.Errorf("database schema %d is newer than this agent", version)
 	}
-	if version == 0 {
-		if _, err = tx.Exec(initialSchema); err != nil {
-			return err
+	for v := version; v < len(migrations); v++ {
+		if _, err = tx.Exec(migrations[v]); err != nil {
+			return fmt.Errorf("schema migration %d: %w", v+1, err)
 		}
-		if _, err = tx.Exec(`INSERT INTO schema_migrations(version) VALUES(1)`); err != nil {
+		if _, err = tx.Exec(`INSERT INTO schema_migrations(version) VALUES(?)`, v+1); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+// accountRow is the single account row. Tokens are secrets: never log or return them.
+type accountRow struct {
+	InstallID    string
+	DeviceToken  string
+	LicenseToken string
+	LastSyncAt   *time.Time
+	HighWater    string
+}
+
+func formatTime(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+
+func (s *Store) account() (accountRow, error) {
+	var r accountRow
+	var device, lic, sync sql.NullString
+	err := s.DB.QueryRow(`SELECT install_id,device_token,license_token,last_sync_at,high_water FROM account WHERE id=1`).Scan(&r.InstallID, &device, &lic, &sync, &r.HighWater)
+	if err != nil {
+		return r, fmt.Errorf("account state unavailable: %w", err)
+	}
+	r.DeviceToken, r.LicenseToken = device.String, lic.String
+	if t, err := time.Parse(time.RFC3339Nano, sync.String); sync.Valid && err == nil {
+		r.LastSyncAt = &t
+	}
+	return r, nil
+}
+
+// saveSession stores a new device session after a verified sign-in.
+func (s *Store) saveSession(token, license string, syncAt, highWater time.Time) error {
+	_, err := s.DB.Exec(`UPDATE account SET device_token=?,license_token=?,last_sync_at=?,high_water=? WHERE id=1`, token, license, formatTime(syncAt), formatTime(highWater))
+	return err
+}
+
+// saveLicense stores a verified refreshed license only if the session that
+// requested it is still the current one (a sign-out may have happened meanwhile).
+func (s *Store) saveLicense(token, license string, syncAt, highWater time.Time) error {
+	_, err := s.DB.Exec(`UPDATE account SET license_token=?,last_sync_at=?,high_water=? WHERE id=1 AND device_token=?`, license, formatTime(syncAt), formatTime(highWater), token)
+	return err
+}
+
+// clearSession signs out locally. With a token, only that session is cleared.
+// Plans, jobs and restore history are never touched.
+func (s *Store) clearSession(token string) error {
+	q := `UPDATE account SET device_token=NULL,license_token=NULL WHERE id=1`
+	args := []any{}
+	if token != "" {
+		q += ` AND device_token=?`
+		args = append(args, token)
+	}
+	_, err := s.DB.Exec(q, args...)
+	return err
+}
+
+// advanceHighWater replaces the mark only if it still holds the value that was read,
+// so a concurrent successful sync is never overwritten.
+func (s *Store) advanceHighWater(previous string, next time.Time) error {
+	_, err := s.DB.Exec(`UPDATE account SET high_water=? WHERE id=1 AND high_water=?`, formatTime(next), previous)
+	return err
 }
