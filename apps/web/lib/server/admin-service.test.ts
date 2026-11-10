@@ -163,7 +163,9 @@ describe("issueLoginCode", () => {
     const r = await issueLoginCode(repo, env, id, now);
     expect(r.code).toMatch(/^\d{6}$/);
     expect(r.expiresAt.getTime()).toBe(now.getTime() + 48 * 3_600_000);
-    expect(r.whatsappText).toContain(r.code);
+    expect(r.whatsappText).toContain(
+      `${r.code.slice(0, 3)} ${r.code.slice(3)}`,
+    );
     const [stored] = [...repo.codes.values()];
     expect(stored!.codeHmac).not.toBe(r.code);
     expect(stored!.codeHmac).toBe(hashLoginCode(r.code, env.sessionSecret));
@@ -173,8 +175,25 @@ describe("issueLoginCode", () => {
     const { repo, id } = await setup();
     const r = await issueLoginCode(repo, env, id, now);
     // 2026-11-09T06:00Z + 48h = 2026-11-11T06:00Z = 11:30 am IST
+    const spaced = `${r.code.slice(0, 3)} ${r.code.slice(3)}`;
     expect(r.whatsappText).toBe(
-      `Your Bakvion sign-in code is ${r.code}. It works once and expires on 11 Nov 2026, 11:30 am IST. Open Bakvion → Sign in → 6-digit code.`,
+      [
+        "Hello Ravi 👋",
+        "",
+        "Welcome to *Bakvion* — automatic, encrypted backups for *Acme*. 🛡️",
+        "",
+        `🔐 Your sign-in code: *${spaced}*`,
+        "🕒 Valid until: 11 Nov 2026, 11:30 AM (IST)",
+        "✅ One-time use — please keep it private.",
+        "",
+        "*How to sign in*",
+        "1️⃣ Open the Bakvion app on your PC",
+        "2️⃣ Choose *Sign in → 6-digit code*",
+        "3️⃣ Enter the code above",
+        "",
+        "Need help? Just reply to this message. 🙂",
+        "— Team Bakvion",
+      ].join("\n"),
     );
   });
   it("formatIST output shape", () => {

@@ -2,16 +2,11 @@ import { requireAdmin } from "../../../../lib/server/admin-session";
 import { serverEnv } from "../../../../lib/server/env";
 import { createSupabaseRepo } from "../../../../lib/server/repo-supabase";
 import { daysAgo, formatDateTime } from "../format";
+import { whatsappDigits } from "../../../../lib/server/leads";
 import { EmptyState, PageHeader } from "../../ui";
 import { LeadsTable, type LeadRow } from "./LeadsTable";
 
 export const dynamic = "force-dynamic";
-
-/** wa.me wants digits with country code; assume India for 10-digit numbers. */
-function whatsappDigits(phone: string): string {
-  const d = phone.replace(/\D/g, "");
-  return d.length === 10 ? `91${d}` : d;
-}
 
 export default async function LeadsPage() {
   await requireAdmin();

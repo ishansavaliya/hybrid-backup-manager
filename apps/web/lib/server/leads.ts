@@ -87,39 +87,100 @@ const IST = new Intl.DateTimeFormat("en-IN", {
   timeStyle: "short",
 });
 
-/** Owner notification for a new enquiry. */
+/** wa.me needs digits with country code; 10-digit numbers are Indian. */
+export function whatsappDigits(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  return d.length === 10 ? `91${d}` : d;
+}
+
+/** Owner notification for a new enquiry (email-client-safe HTML + text). */
 export function leadEmail(
   l: LeadInput,
   at: Date,
   adminUrl?: string,
 ): { subject: string; text: string; html: string } {
+  const when = `${IST.format(at)} IST`;
+  const source = l.source === "app" ? "Bakvion app" : "Website";
+  const leadsUrl = adminUrl
+    ? `${adminUrl.replace(/\/$/, "")}/bkpadmin/leads`
+    : "";
+  const digits = whatsappDigits(l.phone);
+  const greeting = encodeURIComponent(
+    `Hello ${l.name}, this is Bakvion 👋 Thank you for your enquiry for ${l.business}. When is a good time to set up your automatic backups?`,
+  );
+  const waUrl = `https://wa.me/${digits}?text=${greeting}`;
+  const telUrl = `tel:+${digits}`;
+
   const rows: [string, string][] = [
-    ["Name", l.name],
-    ["Business", l.business],
+    ["Contact person", l.name],
     ["Phone", l.phone],
     ["Email", l.email || "—"],
     ["City", l.city || "—"],
-    ["PCs", l.pcs ? String(l.pcs) : "—"],
-    ["Message", l.message || "—"],
-    ["From", l.source === "app" ? "Bakvion app" : "Website"],
-    ["Received", `${IST.format(at)} IST`],
-    ["IP", l.ip || "—"],
+    ["PCs needed", l.pcs ? String(l.pcs) : "—"],
+    ["Received", when],
+    ["From", source],
   ];
-  const link = adminUrl ? `${adminUrl.replace(/\/$/, "")}/bkpadmin/leads` : "";
-  const text =
-    rows.map(([k, v]) => `${k}: ${v}`).join("\n") +
-    (link ? `\n\nOpen Leads: ${link}` : "") +
-    "\n\nPlease contact them within 24 hours.";
-  const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#15171a">
-<h2 style="margin:0 0 12px">New Bakvion enquiry</h2>
-<table cellpadding="6" style="border-collapse:collapse">${rows
+
+  const text = [
+    `New Bakvion enquiry — ${l.business}`,
+    "",
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+    ...(l.message ? ["", `Message: ${l.message}`] : []),
+    "",
+    `WhatsApp: ${waUrl}`,
+    ...(leadsUrl ? [`Open Leads: ${leadsUrl}`] : []),
+    "",
+    "Please contact them within 24 hours.",
+    ...(l.ip ? [`IP: ${l.ip}`] : []),
+  ].join("\n");
+
+  const button = (href: string, label: string, primary: boolean) =>
+    `<a href="${esc(href)}" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;${
+      primary
+        ? "background:#f07a0f;color:#15171a;"
+        : "background:#ffffff;color:#15171a;border:1px solid #d6d2ca;"
+    }">${esc(label)}</a>`;
+
+  const detailRows = rows
     .map(
-      ([k, v]) =>
-        `<tr><td style="color:#6c717a;vertical-align:top">${esc(k)}</td><td style="white-space:pre-wrap">${esc(v)}</td></tr>`,
+      ([k, v], i) =>
+        `<tr><td style="padding:10px 0;${i ? "border-top:1px solid #efece6;" : ""}color:#6c717a;font-size:13px;width:140px;vertical-align:top">${esc(k)}</td><td style="padding:10px 0;${i ? "border-top:1px solid #efece6;" : ""}color:#15171a;font-size:14px;font-weight:600">${esc(v)}</td></tr>`,
     )
-    .join("")}</table>
-${link ? `<p><a href="${esc(link)}">Open Leads in the admin panel</a></p>` : ""}
-<p style="color:#6c717a">Please contact them within 24 hours.</p></div>`;
+    .join("");
+
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f6f5f2">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f5f2;padding:28px 12px;font-family:'Segoe UI',Helvetica,Arial,sans-serif">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
+  <tr><td style="padding:0 4px 16px">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td style="width:28px;height:28px;border-radius:14px;background:#f07a0f"></td>
+      <td style="padding-left:10px;font-size:18px;font-weight:800;color:#15171a;letter-spacing:-0.3px">Bakvion</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="background:#ffffff;border:1px solid #e7e4de;border-radius:16px;padding:28px">
+    <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#fdeedd;color:#a94f00;font-size:12px;font-weight:700">● New enquiry · ${esc(source)}</span>
+    <h1 style="margin:14px 0 4px;font-size:24px;line-height:1.25;color:#15171a">${esc(l.business)}</h1>
+    <p style="margin:0 0 20px;color:#6c717a;font-size:14px">${esc(l.name)} wants to connect with a Bakvion expert.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${detailRows}</table>
+    ${
+      l.message
+        ? `<div style="margin-top:18px;padding:14px 16px;border-radius:12px;background:#f6f5f2;border-left:3px solid #f07a0f;color:#15171a;font-size:14px;line-height:1.5;white-space:pre-wrap">${esc(l.message)}</div>`
+        : ""
+    }
+    <div style="margin-top:24px">
+      ${button(waUrl, "💬 Reply on WhatsApp", true)}${button(telUrl, "📞 Call", false)}${leadsUrl ? button(leadsUrl, "Open Leads", false) : ""}
+    </div>
+    <p style="margin:12px 0 0;padding:12px 14px;border-radius:10px;background:#fff6ea;color:#8a4a00;font-size:13px">⏱ Please contact them within 24 hours — that's what they were promised.</p>
+  </td></tr>
+  <tr><td style="padding:16px 4px;color:#8a8f98;font-size:12px;line-height:1.5">
+    Sent automatically by Bakvion · ${esc(when)}${l.ip ? ` · IP ${esc(l.ip)}` : ""}<br>Your Data. Always Protected.
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
   return { subject: `New Bakvion enquiry — ${l.business}`, text, html };
 }
 

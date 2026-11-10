@@ -12,13 +12,7 @@ import {
 } from "lucide-react";
 import { leadStatusAction } from "../../actions";
 import { CopyButton } from "../CopyButton";
-import {
-  Button,
-  DataTable,
-  Notice,
-  Segmented,
-  SelectMenu,
-} from "../../ui";
+import { Button, DataTable, Notice, Segmented, SelectMenu } from "../../ui";
 
 export type LeadStatusKey =
   "new" | "contacted" | "converted" | "not_interested";

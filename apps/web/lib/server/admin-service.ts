@@ -5,6 +5,7 @@ import { hashPassword } from "./passwords";
 import {
   isLoginNameShape,
   UsernameTakenError,
+  type ClientRecord,
   type ClientSummary,
   type Repo,
 } from "./repo";
@@ -240,8 +241,33 @@ export function formatIST(date: Date): string {
   return `${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute} ${p.dayPeriod?.toLowerCase()}`;
 }
 
-export function whatsappMessage(code: string, expiresAt: Date): string {
-  return `Your Bakvion sign-in code is ${code}. It works once and expires on ${formatIST(expiresAt)} IST. Open Bakvion → Sign in → 6-digit code.`;
+/** Ready-to-send WhatsApp message (WhatsApp renders *bold*). */
+export function whatsappMessage(
+  code: string,
+  expiresAt: Date,
+  client: Pick<ClientRecord, "name" | "contactPerson">,
+): string {
+  const greet = client.contactPerson.trim() || client.name;
+  const until = formatIST(expiresAt).replace(/ (am|pm)$/, (m) =>
+    m.toUpperCase(),
+  );
+  return [
+    `Hello ${greet} 👋`,
+    "",
+    `Welcome to *Bakvion* — automatic, encrypted backups for *${client.name}*. 🛡️`,
+    "",
+    `🔐 Your sign-in code: *${code.slice(0, 3)} ${code.slice(3)}*`,
+    `🕒 Valid until: ${until} (IST)`,
+    "✅ One-time use — please keep it private.",
+    "",
+    "*How to sign in*",
+    "1️⃣ Open the Bakvion app on your PC",
+    "2️⃣ Choose *Sign in → 6-digit code*",
+    "3️⃣ Enter the code above",
+    "",
+    "Need help? Just reply to this message. 🙂",
+    "— Team Bakvion",
+  ].join("\n");
 }
 
 export async function issueLoginCode(
@@ -250,7 +276,7 @@ export async function issueLoginCode(
   id: string,
   now: Date,
 ): Promise<{ code: string; expiresAt: Date; whatsappText: string }> {
-  await mustGetClient(repo, id);
+  const client = await mustGetClient(repo, id);
   const expiresAt = new Date(now.getTime() + LOGIN_CODE_HOURS * 3_600_000);
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
     const code = generateLoginCode();
@@ -269,7 +295,7 @@ export async function issueLoginCode(
       return {
         code,
         expiresAt,
-        whatsappText: whatsappMessage(code, expiresAt),
+        whatsappText: whatsappMessage(code, expiresAt, client),
       };
     }
   }
