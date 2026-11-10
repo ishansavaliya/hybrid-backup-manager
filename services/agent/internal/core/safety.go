@@ -83,19 +83,25 @@ func ValidatePlan(p Plan, statePath string) error {
 			return errors.New("duplicate repository")
 		}
 		repos[key] = true
+		for _, s := range sources {
+			if overlaps(s, repo) || overlaps(repo, s) {
+				return errors.New("source and repository overlap; recursive backup refused")
+			}
+			if overlaps(s, filepath.Dir(statePath)) {
+				return errors.New("agent state directory must be outside backup sources")
+			}
+		}
+		// An empty password file means a Bakvion-managed key.
+		if d.PasswordFile == "" {
+			continue
+		}
 		secret, err := canonical(d.PasswordFile)
 		if err != nil {
 			return err
 		}
 		for _, s := range sources {
-			if overlaps(s, repo) || overlaps(repo, s) {
-				return errors.New("source and repository overlap; recursive backup refused")
-			}
 			if overlaps(s, secret) {
 				return errors.New("password file must be outside all backup sources")
-			}
-			if overlaps(s, filepath.Dir(statePath)) {
-				return errors.New("agent state directory must be outside backup sources")
 			}
 		}
 		if overlaps(repo, secret) {
@@ -104,6 +110,47 @@ func ValidatePlan(p Plan, statePath string) error {
 		if err = validateSecretFile(secret); err != nil {
 			return err
 		}
+	}
+	if err := ValidateSchedule(p.Schedule); err != nil {
+		return err
+	}
+	return ValidateRetention(p.Retention)
+}
+
+var clockTime = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
+
+// ValidateSchedule accepts manual (or empty, treated as manual), hourly,
+// daily at HH:MM, or weekly on chosen days at HH:MM.
+func ValidateSchedule(s Schedule) error {
+	switch s.Kind {
+	case "", "manual", "hourly":
+		return nil
+	case "daily", "weekly":
+		if !clockTime.MatchString(s.Time) {
+			return errors.New("schedule time must be HH:MM")
+		}
+		if s.Kind == "weekly" {
+			if len(s.Days) == 0 || len(s.Days) > 7 {
+				return errors.New("choose at least one day for a weekly schedule")
+			}
+			for _, d := range s.Days {
+				if d < 0 || d > 6 {
+					return errors.New("invalid schedule day")
+				}
+			}
+		}
+		return nil
+	}
+	return errors.New("unknown schedule")
+}
+
+// ValidateRetention bounds the keep counts; enabled cleanup must keep something.
+func ValidateRetention(r Retention) error {
+	if r.Daily < 0 || r.Daily > 365 || r.Weekly < 0 || r.Weekly > 104 || r.Monthly < 0 || r.Monthly > 120 {
+		return errors.New("cleanup counts out of range")
+	}
+	if r.Enabled && r.Daily+r.Weekly+r.Monthly == 0 {
+		return errors.New("automatic cleanup must keep at least one daily, weekly or monthly version")
 	}
 	return nil
 }

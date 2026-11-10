@@ -1,10 +1,31 @@
 import { useState } from "react";
-import { Database, HardDrive, Play } from "lucide-react";
-import type { AgentOverview } from "@bakvion/shared-types";
+import { CalendarClock, Database, HardDrive, Play } from "lucide-react";
+import type {
+  AgentOverview,
+  Plan,
+  Retention,
+  Schedule,
+} from "@bakvion/shared-types";
+import { defaultRetention } from "@bakvion/validation";
 import { GxDialog } from "@bakvion/ui/gx";
 import { request } from "../api";
-import { useI18n } from "../i18n";
-import { Badge, Button, Card, CardHeader, EmptyState, stateTone } from "../ui";
+import { format, useI18n } from "../i18n";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  PasswordInput,
+  stateTone,
+} from "../ui";
+import {
+  cleanSchedule,
+  cleanupLabel,
+  scheduleLabel,
+  ScheduleFields,
+} from "./ScheduleFields";
 
 export function Plans({
   data,
@@ -21,12 +42,27 @@ export function Plans({
   notify: (m: string) => void;
   onCreatePlan: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, weekdays, relative, dateTime } = useI18n();
   const p = t.plans;
-  const [initFor, setInitFor] = useState<{
-    planId: string;
-    destinationId: string;
+  type Target = { planId: string; destinationId: string };
+  const [initFor, setInitFor] = useState<Target | null>(null);
+  const [connectFor, setConnectFor] = useState<Target | null>(null);
+  const [key, setKey] = useState("");
+  const [editing, setEditing] = useState<{
+    plan: Plan;
+    schedule: Schedule;
+    retention: Retention;
   } | null>(null);
+  const editValid =
+    !!editing &&
+    (!["daily", "weekly"].includes(editing.schedule.kind) ||
+      !!editing.schedule.time) &&
+    (editing.schedule.kind !== "weekly" || !!editing.schedule.days?.length) &&
+    (!editing.retention.enabled ||
+      editing.retention.daily +
+        editing.retention.weekly +
+        editing.retention.monthly >
+        0);
   const jobs = data.executions;
   if (!data.plans.length)
     return (
@@ -52,24 +88,53 @@ export function Plans({
             j.planId === plan.id &&
             (j.state === "running" || j.state === "queued"),
         );
+        const next = data.nextRuns?.[plan.id];
         return (
           <Card key={plan.id} className="gx-plan">
             <CardHeader
               title={plan.name}
-              description={p.manual}
+              description={
+                <>
+                  {scheduleLabel(t, weekdays, plan.schedule)}
+                  {next ? (
+                    <span title={dateTime(next)}>
+                      {" · "}
+                      {format(p.next, { when: relative(next) })}
+                    </span>
+                  ) : null}
+                  <br />
+                  {cleanupLabel(t, plan.retention)}
+                </>
+              }
               actions={
-                <Button
-                  disabled={busy || paused || running}
-                  onClick={() =>
-                    void act(async () => {
-                      await request("startBackup", { planId: plan.id });
-                      notify(p.queued);
-                    })
-                  }
-                >
-                  <Play size={15} aria-hidden="true" />
-                  {p.run}
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={busy || paused}
+                    onClick={() =>
+                      setEditing({
+                        plan,
+                        schedule: plan.schedule ?? { kind: "manual" },
+                        retention: plan.retention ?? defaultRetention,
+                      })
+                    }
+                  >
+                    <CalendarClock size={15} aria-hidden="true" />
+                    {p.edit}
+                  </Button>
+                  <Button
+                    disabled={busy || paused || running}
+                    onClick={() =>
+                      void act(async () => {
+                        await request("startBackup", { planId: plan.id });
+                        notify(p.queued);
+                      })
+                    }
+                  >
+                    <Play size={15} aria-hidden="true" />
+                    {p.run}
+                  </Button>
+                </>
               }
             />
             <p className="gx-section-label">{p.folders}</p>
@@ -134,6 +199,19 @@ export function Plans({
                       >
                         {p.init}
                       </Button>
+                      {d.passwordFile ? null : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setKey("");
+                            setConnectFor(params);
+                          }}
+                        >
+                          {p.connect}
+                        </Button>
+                      )}
                       <Button
                         variant="secondary"
                         size="sm"
@@ -181,6 +259,94 @@ export function Plans({
             }}
           >
             {p.init}
+          </Button>
+        </footer>
+      </GxDialog>
+      <GxDialog
+        open={!!connectFor}
+        onOpenChange={(o) => !o && setConnectFor(null)}
+        title={p.connectTitle}
+        description={p.connectBody}
+        closeLabel={t.common.close}
+        width={500}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const target = connectFor;
+            const value = key;
+            setConnectFor(null);
+            setKey("");
+            if (target)
+              void act(async () => {
+                await request("connectDestination", { ...target, key: value });
+                notify(p.connectOk);
+              });
+          }}
+        >
+          <div className="gx-dialog__body">
+            <Field label={p.connectKey} htmlFor="pl-connect-key">
+              <PasswordInput
+                id="pl-connect-key"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                showLabel={t.signin.showPassword}
+                hideLabel={t.signin.hidePassword}
+                autoComplete="off"
+                autoFocus
+              />
+            </Field>
+          </div>
+          <footer className="gx-dialog__foot">
+            <Button variant="secondary" onClick={() => setConnectFor(null)}>
+              {t.common.cancel}
+            </Button>
+            <Button type="submit" disabled={key.trim().length < 8}>
+              {p.connect}
+            </Button>
+          </footer>
+        </form>
+      </GxDialog>
+      <GxDialog
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        title={p.edit}
+        description={editing?.plan.name}
+        closeLabel={t.common.close}
+        width={620}
+      >
+        <div className="gx-dialog__body">
+          {editing ? (
+            <ScheduleFields
+              idPrefix="pl"
+              schedule={editing.schedule}
+              retention={editing.retention}
+              onSchedule={(schedule) => setEditing({ ...editing, schedule })}
+              onRetention={(retention) => setEditing({ ...editing, retention })}
+            />
+          ) : null}
+        </div>
+        <footer className="gx-dialog__foot">
+          <Button variant="secondary" onClick={() => setEditing(null)}>
+            {t.common.cancel}
+          </Button>
+          <Button
+            disabled={!editValid}
+            onClick={() => {
+              const e = editing;
+              setEditing(null);
+              if (e)
+                void act(async () => {
+                  await request("savePlan", {
+                    ...e.plan,
+                    schedule: cleanSchedule(e.schedule),
+                    retention: e.retention,
+                  });
+                  notify(p.saved);
+                });
+            }}
+          >
+            {t.wizard.save}
           </Button>
         </footer>
       </GxDialog>

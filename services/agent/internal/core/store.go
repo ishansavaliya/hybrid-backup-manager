@@ -17,6 +17,9 @@ var initialSchema string
 //go:embed migrations/002_account.sql
 var accountSchema string
 
+//go:embed migrations/003_schedules_keys.sql
+var scheduleKeysSchema string
+
 type Store struct {
 	DB   *sql.DB
 	Path string
@@ -93,7 +96,7 @@ func (s *Store) Plan(id string) (Plan, error) {
 	return p, err
 }
 func (s *Store) Executions() ([]Execution, error) {
-	rows, err := s.DB.Query(`SELECT id,plan_id,destination_id,state,snapshot_id,started_at,finished_at,error FROM job_executions ORDER BY started_at DESC LIMIT 200`)
+	rows, err := s.DB.Query(`SELECT id,plan_id,destination_id,state,snapshot_id,started_at,finished_at,error,notes FROM job_executions ORDER BY started_at DESC LIMIT 200`)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +104,7 @@ func (s *Store) Executions() ([]Execution, error) {
 	out := []Execution{}
 	for rows.Next() {
 		var e Execution
-		if err = rows.Scan(&e.ID, &e.PlanID, &e.DestinationID, &e.State, &e.SnapshotID, &e.StartedAt, &e.FinishedAt, &e.Error); err != nil {
+		if err = rows.Scan(&e.ID, &e.PlanID, &e.DestinationID, &e.State, &e.SnapshotID, &e.StartedAt, &e.FinishedAt, &e.Error, &e.Notes); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -121,7 +124,7 @@ func (s *Store) migrate() error {
 		return err
 	}
 	// migrations[i] upgrades the schema from version i to i+1.
-	migrations := []string{initialSchema, accountSchema}
+	migrations := []string{initialSchema, accountSchema, scheduleKeysSchema}
 	if version > len(migrations) {
 		return fmt.Errorf("database schema %d is newer than this agent", version)
 	}

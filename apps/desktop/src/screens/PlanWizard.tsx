@@ -1,11 +1,25 @@
 import { useState } from "react";
 import { ArrowRight, FolderPlus, HardDrive, KeyRound, X } from "lucide-react";
-import type { Plan } from "@bakvion/shared-types";
-import { planSchema } from "@bakvion/validation";
+import type { Plan, Retention, Schedule } from "@bakvion/shared-types";
+import { defaultRetention, planSchema } from "@bakvion/validation";
 import { GxDialog } from "@bakvion/ui/gx";
 import { choose } from "../api";
 import { format, useI18n } from "../i18n";
 import { Button, Field, Input, Notice } from "../ui";
+import {
+  cleanSchedule,
+  cleanupLabel,
+  DEFAULT_DAYS,
+  DEFAULT_TIME,
+  scheduleLabel,
+  ScheduleFields,
+} from "./ScheduleFields";
+
+const NEW_SCHEDULE: Schedule = {
+  kind: "daily",
+  time: DEFAULT_TIME,
+  days: DEFAULT_DAYS,
+};
 
 export function PlanWizard({
   open,
@@ -16,13 +30,15 @@ export function PlanWizard({
   close: () => void;
   save: (p: Plan) => Promise<void>;
 }) {
-  const { t } = useI18n();
+  const { t, weekdays } = useI18n();
   const w = t.wizard;
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [sources, setSources] = useState<string[]>([]);
   const [exclusions, setExclusions] = useState("");
   const [destinations, setDestinations] = useState<Plan["destinations"]>([]);
+  const [schedule, setSchedule] = useState<Schedule>(NEW_SCHEDULE);
+  const [retention, setRetention] = useState<Retention>(defaultRetention);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const id = () => crypto.randomUUID().replaceAll("-", "");
@@ -42,6 +58,8 @@ export function PlanWizard({
     setSources([]);
     setExclusions("");
     setDestinations([]);
+    setSchedule(NEW_SCHEDULE);
+    setRetention(defaultRetention);
     setError("");
   }
   async function finish() {
@@ -54,6 +72,8 @@ export function PlanWizard({
         sources,
         exclusions: exclusions.split("\n").filter(Boolean),
         destinations,
+        schedule: cleanSchedule(schedule),
+        retention,
       });
       await save(parsed);
       close();
@@ -67,7 +87,11 @@ export function PlanWizard({
   const canNext =
     (step === 0 && !!name.trim() && sources.length > 0) ||
     (step === 1 && destinations.length > 0) ||
-    (step === 2 && destinations.every((d) => !!d.passwordFile));
+    (step === 2 &&
+      (!["daily", "weekly"].includes(schedule.kind) || !!schedule.time) &&
+      (schedule.kind !== "weekly" || !!schedule.days?.length) &&
+      (!retention.enabled ||
+        retention.daily + retention.weekly + retention.monthly > 0));
 
   return (
     <GxDialog
@@ -219,33 +243,17 @@ export function PlanWizard({
 
         {step === 2 && (
           <>
-            <Notice kind="ok">{w.keyIntro}</Notice>
-            {destinations.map((d) => (
-              <div className="gx-row" key={d.id}>
-                <div className="gx-row__main">
-                  <span className="gx-row__title">{d.name}</span>
-                  <span className="gx-path">{d.passwordFile || w.noKey}</span>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    void native(async () => {
-                      const p = await choose(false);
-                      if (p)
-                        setDestinations(
-                          destinations.map((x) =>
-                            x.id === d.id ? { ...x, passwordFile: p } : x,
-                          ),
-                        );
-                    })
-                  }
-                >
-                  <KeyRound size={15} aria-hidden="true" />
-                  {w.chooseKey}
-                </Button>
-              </div>
-            ))}
+            <ScheduleFields
+              idPrefix="wz"
+              schedule={schedule}
+              retention={retention}
+              onSchedule={setSchedule}
+              onRetention={setRetention}
+            />
+            <p className="gx-hint" style={{ display: "flex", gap: 8 }}>
+              <KeyRound size={15} aria-hidden="true" style={{ flex: "none" }} />
+              {w.keyNote}
+            </p>
           </>
         )}
 
@@ -277,6 +285,16 @@ export function PlanWizard({
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="gx-list">
+              <div className="gx-row">
+                <span className="gx-row__title">
+                  {scheduleLabel(t, weekdays, cleanSchedule(schedule))}
+                </span>
+              </div>
+              <div className="gx-row">
+                <span className="gx-muted">{cleanupLabel(t, retention)}</span>
+              </div>
             </div>
             <p className="gx-hint">{w.reviewNote}</p>
           </>

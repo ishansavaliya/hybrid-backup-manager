@@ -5,7 +5,22 @@ export interface Destination {
   id: string;
   name: string;
   repository: string;
+  /** Empty: Bakvion creates and protects the key itself. */
   passwordFile: string;
+}
+export type ScheduleKind = "manual" | "hourly" | "daily" | "weekly";
+export interface Schedule {
+  kind: ScheduleKind;
+  /** Local "HH:MM" for daily and weekly. */
+  time?: string;
+  /** Weekdays for weekly, 0 = Sunday. */
+  days?: number[];
+}
+export interface Retention {
+  enabled: boolean;
+  daily: number;
+  weekly: number;
+  monthly: number;
 }
 export interface Plan {
   id: string;
@@ -13,6 +28,8 @@ export interface Plan {
   sources: string[];
   exclusions: string[];
   destinations: Destination[];
+  schedule: Schedule;
+  retention: Retention;
 }
 export interface Execution {
   id: string;
@@ -23,6 +40,8 @@ export interface Execution {
   startedAt: string;
   finishedAt: string | null;
   error: string;
+  /** e.g. "Old versions cleaned up" or "Cleanup skipped: …". */
+  notes: string;
 }
 export interface Snapshot {
   id: string;
@@ -42,10 +61,17 @@ export interface AgentStatus {
   mode: "full" | "restore_only" | "signed_out";
   capabilities: string[];
 }
+export interface KitStatus {
+  needed: boolean;
+  savedAt: string | null;
+}
 export interface AgentOverview {
   status: AgentStatus;
   plans: Plan[];
   executions: Execution[];
+  /** Plan id → next scheduled backup (RFC 3339). */
+  nextRuns: Record<string, string>;
+  kit: KitStatus;
 }
 export interface AgentRequest {
   version: 1;

@@ -49,6 +49,8 @@ interface I18n {
   days: (n: number) => string;
   /** "today" / "1 day ago" / "{n} days ago". */
   daysAgo: (n: number) => string;
+  /** Short weekday names, index 0 = Sunday. */
+  weekdays: string[];
 }
 
 const Ctx = createContext<I18n | null>(null);
@@ -72,6 +74,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     });
     const d = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    const wd = new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      timeZone: "UTC",
+    });
+    // 8 Nov 2026 is a Sunday.
+    const weekdays = Array.from({ length: 7 }, (_, i) =>
+      wd.format(new Date(Date.UTC(2026, 10, 8 + i, 12))),
+    );
     return {
       lang,
       t,
@@ -89,6 +99,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       daysAgo: (n) => (n <= 0 ? t.common.today : rtf.format(-n, "day")),
       days: (n) =>
         n === 1 ? t.membership.day : format(t.membership.days, { n }),
+      weekdays,
     };
   }, [lang, setLang]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

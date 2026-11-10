@@ -19,18 +19,53 @@ import (
 type Engine struct{ Binary string }
 
 // No shell is used. Provider and password environment injection is deliberately removed.
+// A managed key (d.password) is handed to restic only through this child's
+// environment; a password file must pass the private-file checks.
 func (e Engine) command(ctx context.Context, d Destination, args ...string) (*exec.Cmd, error) {
-	if err := validateSecretFile(d.PasswordFile); err != nil {
-		return nil, err
+	base := []string{"--repo", d.Repository, "--json", "--no-cache"}
+	switch {
+	case d.PasswordFile != "":
+		if err := validateSecretFile(d.PasswordFile); err != nil {
+			return nil, err
+		}
+		base = append(base, "--password-file", d.PasswordFile)
+	case d.password == "":
+		return nil, errors.New("destination key unavailable")
 	}
-	cmd := exec.CommandContext(ctx, e.Binary, append([]string{"--repo", d.Repository, "--password-file", d.PasswordFile, "--json", "--no-cache"}, args...)...)
+	cmd := exec.CommandContext(ctx, e.Binary, append(base, args...)...)
 	for _, v := range os.Environ() {
 		key := strings.SplitN(v, "=", 2)[0]
 		if !strings.HasPrefix(key, "RESTIC_") && !strings.HasPrefix(key, "RCLONE_") {
 			cmd.Env = append(cmd.Env, v)
 		}
 	}
+	if d.PasswordFile == "" {
+		cmd.Env = append(cmd.Env, "RESTIC_PASSWORD="+d.password)
+	}
 	return cmd, nil
+}
+
+// Forget applies the plan's retention to its own snapshots and prunes data
+// no longer referenced. The newest snapshot is always kept.
+func (e Engine) Forget(ctx context.Context, d Destination, planID string, r Retention) error {
+	if !r.Enabled {
+		return nil
+	}
+	if err := ValidateRetention(r); err != nil {
+		return err
+	}
+	args := []string{"forget", "--tag", "bakvion-plan:" + planID, "--keep-last", "1", "--prune"}
+	if r.Daily > 0 {
+		args = append(args, "--keep-daily", fmt.Sprint(r.Daily))
+	}
+	if r.Weekly > 0 {
+		args = append(args, "--keep-weekly", fmt.Sprint(r.Weekly))
+	}
+	if r.Monthly > 0 {
+		args = append(args, "--keep-monthly", fmt.Sprint(r.Monthly))
+	}
+	_, err := e.run(ctx, d, args...)
+	return err
 }
 
 type boundedBuffer struct{ bytes.Buffer }

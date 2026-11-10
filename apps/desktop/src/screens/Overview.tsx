@@ -11,6 +11,7 @@ import type { AgentOverview, Execution, Plan } from "@bakvion/shared-types";
 import { format, useI18n } from "../i18n";
 import { Badge, Button, Card, CardHeader, EmptyState, stateTone } from "../ui";
 import { HistoryTable } from "./History";
+import { scheduleLabel } from "./ScheduleFields";
 
 /** Latest run for every plan/destination pair. */
 export function latestRuns(plans: Plan[], jobs: Execution[]) {
@@ -41,7 +42,7 @@ export function Overview({
   onCreatePlan: () => void;
   onGo: (tab: "plans" | "history") => void;
 }) {
-  const { t, relative, dateTime } = useI18n();
+  const { t, relative, dateTime, weekdays } = useI18n();
   const o = t.overview;
   const plans = data.plans;
   const jobs = data.executions;
@@ -60,6 +61,7 @@ export function Overview({
       (b.finishedAt ?? b.startedAt).localeCompare(a.finishedAt ?? a.startedAt),
     )[0];
   const state = !plans.length || !done ? "none" : bad ? "attention" : "ok";
+  const nextRun = Object.values(data.nextRuns ?? {}).sort()[0];
 
   return (
     <div className="gx-stack">
@@ -91,7 +93,9 @@ export function Overview({
             {lastOk
               ? `${dateTime(lastOk.finishedAt ?? lastOk.startedAt)} · `
               : ""}
-            {o.manualNext}
+            {nextRun
+              ? format(o.nextBackup, { when: relative(nextRun) })
+              : o.manualNext}
           </span>
         </div>
         <Button
@@ -177,7 +181,7 @@ export function Overview({
                           worst.state}
                       </Badge>
                     ) : (
-                      <Badge>{t.plans.manual}</Badge>
+                      <Badge>{scheduleLabel(t, weekdays, p.schedule)}</Badge>
                     )}
                   </div>
                 );

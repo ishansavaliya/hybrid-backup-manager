@@ -408,7 +408,7 @@ func TestFutureSchemaRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.DB.Exec(`INSERT INTO schema_migrations(version) VALUES(3)`); err != nil {
+	if _, err = s.DB.Exec(`INSERT INTO schema_migrations(version) VALUES(4)`); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.DB.Close(); err != nil {

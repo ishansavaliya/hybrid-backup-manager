@@ -193,7 +193,8 @@
       "recentTitle": "Recent activity",
       "viewHistory": "View history",
       "destinationsCount": "Destinations: {n}",
-      "foldersCount": "Folders: {n}"
+      "foldersCount": "Folders: {n}",
+      "nextBackup": "Next backup {when}"
     },
     "plans": {
       "title": "Backup plans",
@@ -207,19 +208,32 @@
       "testOk": "The destination is writable and readable.",
       "init": "Set up",
       "initTitle": "Set up this destination?",
-      "initBody": "Bakvion creates a new encrypted backup store here. Existing stores are never overwritten. Keep a copy of the password in a safe place.",
-      "initOk": "Destination set up. You can run a backup now.",
+      "initBody": "Bakvion creates a new encrypted backup store here, with a key protected on this PC. Existing stores are never overwritten.",
+      "initOk": "Destination set up. Save your recovery kit from Settings, then run a backup.",
       "verify": "Verify",
       "verifyOk": "All backup data in this destination checked and correct.",
       "emptyTitle": "No backup plans yet",
-      "emptyBody": "Create your first plan to protect files on this PC."
+      "emptyBody": "Create your first plan to protect files on this PC.",
+      "hourly": "Every hour",
+      "dailyAt": "Every day at {time}",
+      "weeklyAt": "{days} at {time}",
+      "next": "Next backup {when}",
+      "cleanupOn": "Cleanup keeps {daily} daily · {weekly} weekly · {monthly} monthly",
+      "cleanupOff": "Cleanup off: all versions kept",
+      "edit": "Schedule & cleanup",
+      "saved": "Schedule saved.",
+      "connect": "Connect existing",
+      "connectTitle": "Connect an existing backup",
+      "connectBody": "Use this on a new PC. Enter this destination's key from your recovery kit.",
+      "connectKey": "Key from the recovery kit",
+      "connectOk": "Backup connected. You can restore from it now."
     },
     "wizard": {
       "title": "Create a backup plan",
       "step": "Step {n} of 4",
       "s1": "What to protect",
       "s2": "Where to back up",
-      "s3": "Encryption key",
+      "s3": "Schedule & cleanup",
       "s4": "Review",
       "name": "Plan name",
       "namePlaceholder": "Office documents",
@@ -233,13 +247,24 @@
       "destDefault": "Destination {n}",
       "removeDestination": "Remove destination",
       "storeHint": "A “BakvionRepository” folder is created there when you set it up.",
-      "keyIntro": "For now, choose a password file for each destination (at least 16 characters). Keep a copy somewhere safe — without it, backups can't be restored.",
-      "chooseKey": "Choose password file",
-      "noKey": "No password file chosen",
       "summary": "{folders} folders · {destinations} destinations",
       "reviewNote": "After saving, set up each destination, then run your first backup.",
       "save": "Save plan",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "schedule": "When to back up",
+      "kindManual": "When I click",
+      "kindHourly": "Every hour",
+      "kindDaily": "Every day",
+      "kindWeekly": "Selected days",
+      "time": "Time",
+      "days": "Days",
+      "scheduleHint": "If the PC is off at that time, the backup runs once as soon as it is back on.",
+      "cleanup": "Delete old versions automatically",
+      "cleanupHint": "The newest backup is always kept. When off, every version is kept.",
+      "keepDaily": "Daily versions",
+      "keepWeekly": "Weekly versions",
+      "keepMonthly": "Monthly versions",
+      "keyNote": "Bakvion creates a secure encryption key for each destination. After setting up, save your recovery kit from Settings."
     },
     "restore": {
       "title": "Restore",
@@ -280,7 +305,9 @@
       "details": "Details",
       "waiting": "In progress",
       "emptyTitle": "Your backup history starts here",
-      "emptyBody": "Backups appear here after they run."
+      "emptyBody": "Backups appear here after they run.",
+      "cleaned": "Old versions cleaned up",
+      "cleanupSkipped": "Cleanup skipped"
     },
     "settings": {
       "title": "Settings",
@@ -306,8 +333,12 @@
       "service": "Background service",
       "serviceBody": "Bakvion keeps backing up in the background even when this window is closed.",
       "refresh": "Check service",
-      "keysTitle": "Encryption keys",
-      "keysBody": "Each destination uses your own password file. Keep a copy away from the backup disk — without it, backups can't be restored."
+      "keysTitle": "Recovery kit",
+      "keysBody": "Your encryption keys are protected on this PC. Save the recovery kit on a pen drive or another safe place, away from the backup disk. You need it to restore on another PC.",
+      "kitNeeded": "New keys were created. Save your recovery kit now.",
+      "kitSaved": "Last saved {date}",
+      "kitSave": "Save recovery kit",
+      "kitDone": "Recovery kit saved: {path}"
     },
     "notice": {
       "expired": "Your membership has expired.",

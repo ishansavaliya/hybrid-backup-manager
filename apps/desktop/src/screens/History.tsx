@@ -56,6 +56,14 @@ export function HistoryTable({
                 <td className="gx-muted">
                   {j.error ||
                     (j.snapshotId ? j.snapshotId.slice(0, 12) : h.waiting)}
+                  {j.notes ? (
+                    <span title={j.notes}>
+                      {" · "}
+                      {j.notes.startsWith("Cleanup skipped")
+                        ? h.cleanupSkipped
+                        : h.cleaned}
+                    </span>
+                  ) : null}
                 </td>
               )}
             </tr>

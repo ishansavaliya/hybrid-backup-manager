@@ -25,6 +25,8 @@ type Agent struct {
 	Clock       func() time.Time
 	AppVersion  string
 	MachineInfo func() (machine, windows string)
+	// Sealer protects managed destination keys; nil picks the platform default.
+	Sealer Sealer
 }
 
 func NewID() string {
@@ -162,12 +164,24 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 	if _, err = a.Store.DB.Exec(`UPDATE job_executions SET state='running',started_at=? WHERE id=?`, now(), id); err != nil {
 		return false, err
 	}
-	var snapshot string
+	var snapshot, notes string
 	validated := cfg.Plan
 	validated.Destinations = []Destination{cfg.Destination}
 	err = a.Validate(validated)
+	dest := cfg.Destination
 	if err == nil {
-		snapshot, err = a.Engine.Backup(ctx, cfg.Destination, cfg.Plan)
+		dest, err = a.withKey(cfg.Destination, false)
+	}
+	if err == nil {
+		snapshot, err = a.Engine.Backup(ctx, dest, cfg.Plan)
+	}
+	if err == nil && cfg.Plan.Retention.Enabled && ctx.Err() == nil {
+		// Cleanup only after a confirmed snapshot; a cleanup failure never fails the backup.
+		if forgetErr := a.Engine.Forget(ctx, dest, cfg.Plan.ID, cfg.Plan.Retention); forgetErr != nil {
+			notes = "Cleanup skipped: " + forgetErr.Error()
+		} else {
+			notes = "Old versions cleaned up"
+		}
 	}
 	state := "succeeded"
 	message := ""
@@ -179,7 +193,7 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 		state = "interrupted"
 		message = "operation interrupted; repository may contain an unrecorded completed snapshot"
 	}
-	_, dbErr := a.Store.DB.Exec(`UPDATE job_executions SET state=?,snapshot_id=?,finished_at=?,error=? WHERE id=?`, state, snapshot, now(), message, id)
+	_, dbErr := a.Store.DB.Exec(`UPDATE job_executions SET state=?,snapshot_id=?,finished_at=?,error=?,notes=? WHERE id=?`, state, snapshot, now(), message, notes, id)
 	return true, dbErr
 }
 func (a *Agent) destination(plan, id string) (Destination, error) {
@@ -232,7 +246,15 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		if st, accountErr := a.AccountStatus(); accountErr == nil {
 			mode = st.Mode
 		}
-		return map[string]any{"status": map[string]any{"version": a.AppVersion, "mode": mode, "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore"}}, "plans": plans, "executions": jobs}, nil
+		next, err := a.NextRuns()
+		if err != nil {
+			return nil, err
+		}
+		kit, err := a.KitStatus()
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"status": map[string]any{"version": a.AppVersion, "mode": mode, "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore", "schedules", "retention", "managed-keys"}}, "plans": plans, "executions": jobs, "nextRuns": next, "kit": kit}, nil
 	case "savePlan":
 		var p Plan
 		if err := decode(r.Params, &p); err != nil {
@@ -241,7 +263,11 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		if err := a.Validate(p); err != nil {
 			return nil, err
 		}
-		return map[string]bool{"saved": true}, a.Store.SavePlan(p)
+		if err := a.Store.SavePlan(p); err != nil {
+			return nil, err
+		}
+		// A new or changed schedule counts from now.
+		return map[string]bool{"saved": true}, a.setScheduleState(p.ID, a.now())
 	case "startBackup":
 		var p struct {
 			PlanID string `json:"planId"`
@@ -251,13 +277,26 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		}
 		ids, err := a.Enqueue(p.PlanID)
 		return map[string]any{"jobIds": ids}, err
-	case "testDestination", "initRepository", "snapshots", "browse", "check", "restore":
+	case "exportRecoveryKit":
+		var p struct {
+			Directory string `json:"directory"`
+		}
+		if err := decode(r.Params, &p); err != nil {
+			return nil, err
+		}
+		path, err := a.ExportRecoveryKit(p.Directory)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"path": path}, nil
+	case "testDestination", "initRepository", "connectDestination", "snapshots", "browse", "check", "restore":
 		var p struct {
 			PlanID        string `json:"planId"`
 			DestinationID string `json:"destinationId"`
 			SnapshotID    string `json:"snapshotId"`
 			Target        string `json:"target"`
 			Selection     string `json:"selection"`
+			Key           string `json:"key"`
 		}
 		if err := decode(r.Params, &p); err != nil {
 			return nil, err
@@ -277,7 +316,16 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 			if err = a.Validate(plan); err != nil {
 				return nil, err
 			}
-			return map[string]bool{"initialized": true}, a.Engine.Init(ctx, d)
+			return map[string]bool{"initialized": true}, a.SetUpDestination(ctx, d)
+		case "connectDestination":
+			return map[string]bool{"connected": true}, a.ConnectDestination(ctx, d, p.Key)
+		}
+		if r.Method != "testDestination" && r.Method != "connectDestination" {
+			if d, err = a.withKey(d, false); err != nil {
+				return nil, err
+			}
+		}
+		switch r.Method {
 		case "snapshots":
 			return a.Engine.Snapshots(ctx, d)
 		case "browse":

@@ -36,6 +36,7 @@ func serve(ctx context.Context, a *core.Agent, owner string) (returnErr error) {
 	worker := make(chan error, 1)
 	go func() { worker <- a.Work(ctx, true); cancel() }()
 	go a.LicenseLoop(ctx)
+	go a.SchedulerLoop(ctx)
 	go func() { <-ctx.Done(); listener.Close() }()
 	var active sync.WaitGroup
 	defer func() {

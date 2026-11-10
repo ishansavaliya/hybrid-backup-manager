@@ -269,6 +269,10 @@ function Main({
             themePref={themePref}
             onThemePref={onThemePref}
             onRefreshService={() => void refresh()}
+            kit={data?.kit}
+            busy={busy}
+            act={act}
+            notify={setMessage}
           />
         )}
         <div className="gx-foot">
