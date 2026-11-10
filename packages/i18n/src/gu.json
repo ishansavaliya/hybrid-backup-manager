@@ -194,7 +194,9 @@
       "viewHistory": "ઇતિહાસ જુઓ",
       "destinationsCount": "ડેસ્ટિનેશન: {n}",
       "foldersCount": "ફોલ્ડર: {n}",
-      "nextBackup": "આગલો બેકઅપ {when}"
+      "nextBackup": "આગલો બેકઅપ {when}",
+      "diskFullTitle": "બેકઅપ ડિસ્ક લગભગ ભરાઈ ગઈ છે",
+      "diskFullBody": "{name} {n}% ભરાયેલી છે ({free} ખાલી). જગ્યા ખાલી કરો અથવા “જૂના વર્ઝન આપમેળે દૂર કરો” ચાલુ કરો."
     },
     "plans": {
       "title": "બેકઅપ પ્લાન",
@@ -226,7 +228,8 @@
       "connectTitle": "હાલનો બેકઅપ જોડો",
       "connectBody": "નવા PC પર આનો ઉપયોગ કરો. તમારી રિકવરી કિટમાંથી આ ડેસ્ટિનેશનની કી નાખો.",
       "connectKey": "રિકવરી કિટની કી",
-      "connectOk": "બેકઅપ જોડાઈ ગયો. હવે તમે તેમાંથી રિસ્ટોર કરી શકો છો."
+      "connectOk": "બેકઅપ જોડાઈ ગયો. હવે તમે તેમાંથી રિસ્ટોર કરી શકો છો.",
+      "diskFull": "{n}% ભરાયેલી"
     },
     "wizard": {
       "title": "બેકઅપ પ્લાન બનાવો",
@@ -241,7 +244,7 @@
       "exclusions": "આ ફાઇલો છોડો (દરેક લાઇનમાં એક પેટર્ન)",
       "exclusionsHint": "ઉદાહરણ: *.tmp",
       "fileLevel": "Bakvion ફાઇલો અને ફોલ્ડરનો બેકઅપ લે છે. તે આખી સિસ્ટમની ઇમેજ બનાવતું નથી.",
-      "destHint": "એક્સટર્નલ ડિસ્ક, બીજી ડ્રાઇવ અથવા ફોલ્ડર પસંદ કરો. Google Drive સપોર્ટ ટૂંક સમયમાં.",
+      "destHint": "એક્સટર્નલ ડિસ્ક, બીજી ડ્રાઇવ અથવા ફોલ્ડર પસંદ કરો, અથવા Google Drive વાપરો.",
       "addDestination": "ડેસ્ટિનેશન ઉમેરો",
       "destName": "ડેસ્ટિનેશનનું નામ",
       "destDefault": "ડેસ્ટિનેશન {n}",
@@ -264,7 +267,20 @@
       "keepDaily": "રોજના વર્ઝન",
       "keepWeekly": "અઠવાડિયાના વર્ઝન",
       "keepMonthly": "મહિનાના વર્ઝન",
-      "keyNote": "Bakvion દરેક ડેસ્ટિનેશન માટે સુરક્ષિત એન્ક્રિપ્શન કી બનાવે છે. સેટઅપ પછી સેટિંગ્સમાંથી તમારી રિકવરી કિટ સેવ કરો."
+      "keyNote": "Bakvion દરેક ડેસ્ટિનેશન માટે સુરક્ષિત એન્ક્રિપ્શન કી બનાવે છે. સેટઅપ પછી સેટિંગ્સમાંથી તમારી રિકવરી કિટ સેવ કરો.",
+      "addDrive": "Google Drive",
+      "driveDefault": "Google Drive",
+      "driveTitle": "Google Drive પર બેકઅપ",
+      "driveIntro": "Bakvion એન્ક્રિપ્ટેડ બેકઅપ આ PC પરના તમારા Google Drive ફોલ્ડરમાં સેવ કરે છે, અને Google Drive for desktop તેને અપલોડ કરે છે.",
+      "driveStep1": "Google Drive for desktop (google.com/drive/download) ઇન્સ્ટોલ કરો અને સાઇન ઇન કરો.",
+      "driveStep2": "Google Drive સેટિંગ્સ (ગિયર આઇકન) → Preferences → Google Drive ખોલો.",
+      "driveStep3": "“Mirror files” પસંદ કરો અને Save દબાવો. તમારા યુઝર ફોલ્ડરમાં “My Drive” દેખાય ત્યાં સુધી રાહ જુઓ.",
+      "driveStep4": "અહીં પાછા આવીને “ફરી તપાસો” દબાવો.",
+      "driveNote": "Mirror મોડ આ PC પર પણ કોપી રાખે છે, એટલે C: ડ્રાઇવમાં જગ્યા જોઈએ. Drive અપલોડ પૂરું કરે પછી જ બેકઅપ Google સુધી પહોંચે છે.",
+      "driveStream": "Google Drive “Stream files” પર સેટ છે. Bakvion બેકગ્રાઉન્ડમાં ચાલે છે અને સ્ટ્રીમ ડ્રાઇવ વાપરી શકતું નથી. “Mirror files” પર બદલો (સ્ટેપ 2 અને 3).",
+      "driveNotFound": "આ PC પર હજુ કોઈ Google Drive ફોલ્ડર મળ્યું નથી.",
+      "driveCheck": "ફરી તપાસો",
+      "driveChoose": "ફોલ્ડર જાતે પસંદ કરો"
     },
     "restore": {
       "title": "રિસ્ટોર",
@@ -307,7 +323,12 @@
       "emptyTitle": "તમારો બેકઅપ ઇતિહાસ અહીંથી શરૂ થશે",
       "emptyBody": "બેકઅપ ચાલ્યા પછી અહીં દેખાશે.",
       "cleaned": "જૂના વર્ઝન દૂર કર્યા",
-      "cleanupSkipped": "સફાઈ થઈ શકી નહીં"
+      "cleanupSkipped": "સફાઈ થઈ શકી નહીં",
+      "noShadow": "ખુલ્લી ફાઇલો છૂટી ગઈ હોઈ શકે (Windows સ્નેપશોટ નહીં)",
+      "shadowFailed": "ખુલ્લી ફાઇલો સીધી વાંચી",
+      "unreadable": "કેટલીક ફાઇલો વાંચી શકાઈ નહીં",
+      "diskFull": "ડિસ્ક {n}% ભરાયેલી ({free} ખાલી)",
+      "relocated": "ડિસ્ક {now} પર મળી (પહેલાં {was})"
     },
     "settings": {
       "title": "સેટિંગ્સ",

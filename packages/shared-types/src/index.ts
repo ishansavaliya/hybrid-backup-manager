@@ -40,7 +40,7 @@ export interface Execution {
   startedAt: string;
   finishedAt: string | null;
   error: string;
-  /** e.g. "Old versions cleaned up" or "Cleanup skipped: …". */
+  /** One note per line, e.g. "Old versions cleaned up", "Backup disk is 92% full (3.1 GB free)". */
   notes: string;
 }
 export interface Snapshot {
@@ -72,6 +72,21 @@ export interface AgentOverview {
   /** Plan id → next scheduled backup (RFC 3339). */
   nextRuns: Record<string, string>;
   kit: KitStatus;
+  /** Last measured space of each destination's disk. */
+  disks?: DiskUsage[];
+}
+export interface DiskUsage {
+  planId: string;
+  destinationId: string;
+  usedPercent: number;
+  freeBytes: number;
+  totalBytes: number;
+  checkedAt: string;
+}
+/** A Google Drive for desktop folder; only "mirror" works for backups. */
+export interface DriveFolder {
+  path: string;
+  mode: "mirror" | "stream";
 }
 export interface AgentRequest {
   version: 1;

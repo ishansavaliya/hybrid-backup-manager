@@ -1,9 +1,22 @@
 import { useState } from "react";
-import { ArrowRight, FolderPlus, HardDrive, KeyRound, X } from "lucide-react";
-import type { Plan, Retention, Schedule } from "@bakvion/shared-types";
+import {
+  ArrowRight,
+  Cloud,
+  FolderPlus,
+  HardDrive,
+  KeyRound,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import type {
+  DriveFolder,
+  Plan,
+  Retention,
+  Schedule,
+} from "@bakvion/shared-types";
 import { defaultRetention, planSchema } from "@bakvion/validation";
 import { GxDialog } from "@bakvion/ui/gx";
-import { choose } from "../api";
+import { choose, request } from "../api";
 import { format, useI18n } from "../i18n";
 import { Button, Field, Input, Notice } from "../ui";
 import {
@@ -40,6 +53,8 @@ export function PlanWizard({
   const [schedule, setSchedule] = useState<Schedule>(NEW_SCHEDULE);
   const [retention, setRetention] = useState<Retention>(defaultRetention);
   const [error, setError] = useState("");
+  // Google Drive guide: null = hidden; otherwise whether a streamed drive was seen.
+  const [driveHelp, setDriveHelp] = useState<{ stream: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const id = () => crypto.randomUUID().replaceAll("-", "");
   const titles = [w.s1, w.s2, w.s3, w.s4];
@@ -60,7 +75,32 @@ export function PlanWizard({
     setDestinations([]);
     setSchedule(NEW_SCHEDULE);
     setRetention(defaultRetention);
+    setDriveHelp(null);
     setError("");
+  }
+  const repoIn = (parent: string) =>
+    parent.replace(/[\\/]$/, "") +
+    (parent.includes("\\") ? "\\" : "/") +
+    "BakvionRepository";
+  function addDestination(parent: string, name: string) {
+    const repository = repoIn(parent);
+    if (destinations.some((d) => d.repository === repository)) return;
+    setDestinations([
+      ...destinations,
+      { id: id(), name, repository, passwordFile: "" },
+    ]);
+  }
+  async function findDrive() {
+    const { folders } = await request<{ folders: DriveFolder[] }>(
+      "findGoogleDrive",
+    );
+    const mirror = folders.find((f) => f.mode === "mirror");
+    if (mirror) {
+      addDestination(mirror.path, w.driveDefault);
+      setDriveHelp(null);
+    } else {
+      setDriveHelp({ stream: folders.some((f) => f.mode === "stream") });
+    }
   }
   async function finish() {
     setBusy(true);
@@ -181,27 +221,66 @@ export function PlanWizard({
                   void native(async () => {
                     const parent = await choose(true);
                     if (parent)
-                      setDestinations([
-                        ...destinations,
-                        {
-                          id: id(),
-                          name: format(w.destDefault, {
-                            n: destinations.length + 1,
-                          }),
-                          repository:
-                            parent.replace(/[\\/]$/, "") +
-                            (parent.includes("\\") ? "\\" : "/") +
-                            "BakvionRepository",
-                          passwordFile: "",
-                        },
-                      ]);
+                      addDestination(
+                        parent,
+                        format(w.destDefault, { n: destinations.length + 1 }),
+                      );
                   })
                 }
               >
                 <HardDrive size={16} aria-hidden="true" />
                 {w.addDestination}
               </Button>
+              <Button
+                variant="secondary"
+                style={{ marginLeft: 8 }}
+                onClick={() => void native(findDrive)}
+              >
+                <Cloud size={16} aria-hidden="true" />
+                {w.addDrive}
+              </Button>
             </div>
+            {driveHelp ? (
+              <div className="gx-card" style={{ display: "grid", gap: 10 }}>
+                <strong>{w.driveTitle}</strong>
+                <Notice kind="error">
+                  {driveHelp.stream ? w.driveStream : w.driveNotFound}
+                </Notice>
+                <p className="gx-muted" style={{ margin: 0 }}>
+                  {w.driveIntro}
+                </p>
+                <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
+                  <li>{w.driveStep1}</li>
+                  <li>{w.driveStep2}</li>
+                  <li>{w.driveStep3}</li>
+                  <li>{w.driveStep4}</li>
+                </ol>
+                <p className="gx-hint" style={{ margin: 0 }}>
+                  {w.driveNote}
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Button size="sm" onClick={() => void native(findDrive)}>
+                    <RefreshCw size={14} aria-hidden="true" />
+                    {w.driveCheck}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      void native(async () => {
+                        const parent = await choose(true);
+                        if (parent) {
+                          addDestination(parent, w.driveDefault);
+                          setDriveHelp(null);
+                        }
+                      })
+                    }
+                  >
+                    {w.driveChoose}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {destinations.map((d) => (
               <div
                 className="gx-card"

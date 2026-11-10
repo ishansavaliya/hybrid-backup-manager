@@ -154,6 +154,9 @@ export function Plans({
                   (j) => j.planId === plan.id && j.destinationId === d.id,
                 );
                 const params = { planId: plan.id, destinationId: d.id };
+                const disk = data.disks?.find(
+                  (x) => x.planId === plan.id && x.destinationId === d.id,
+                );
                 return (
                   <div className="gx-row" key={d.id}>
                     <div className="gx-row__main">
@@ -169,6 +172,13 @@ export function Plans({
                             <Badge tone={stateTone(last.state)} dot>
                               {t.states[last.state as keyof typeof t.states] ??
                                 last.state}
+                            </Badge>
+                          </span>
+                        ) : null}
+                        {disk && disk.usedPercent >= 90 ? (
+                          <span style={{ marginLeft: 8 }}>
+                            <Badge tone="warning" dot>
+                              {format(p.diskFull, { n: disk.usedPercent })}
                             </Badge>
                           </span>
                         ) : null}

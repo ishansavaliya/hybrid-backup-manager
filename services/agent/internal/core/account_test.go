@@ -651,7 +651,7 @@ func TestMigratesVersionOneDatabase(t *testing.T) {
 	}
 	defer s.DB.Close()
 	var version int
-	if err = s.DB.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != 4 {
+	if err = s.DB.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != 5 {
 		t.Fatalf("version %d %v", version, err)
 	}
 	plans, err := s.Plans()

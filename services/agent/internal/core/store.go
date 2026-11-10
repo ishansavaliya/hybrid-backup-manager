@@ -23,6 +23,9 @@ var scheduleKeysSchema string
 //go:embed migrations/004_reports.sql
 var reportsSchema string
 
+//go:embed migrations/005_volumes.sql
+var volumesSchema string
+
 type Store struct {
 	DB   *sql.DB
 	Path string
@@ -127,7 +130,7 @@ func (s *Store) migrate() error {
 		return err
 	}
 	// migrations[i] upgrades the schema from version i to i+1.
-	migrations := []string{initialSchema, accountSchema, scheduleKeysSchema, reportsSchema}
+	migrations := []string{initialSchema, accountSchema, scheduleKeysSchema, reportsSchema, volumesSchema}
 	if version > len(migrations) {
 		return fmt.Errorf("database schema %d is newer than this agent", version)
 	}

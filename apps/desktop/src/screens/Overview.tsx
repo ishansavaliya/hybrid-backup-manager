@@ -9,7 +9,16 @@ import {
 } from "lucide-react";
 import type { AgentOverview, Execution, Plan } from "@bakvion/shared-types";
 import { format, useI18n } from "../i18n";
-import { Badge, Button, Card, CardHeader, EmptyState, stateTone } from "../ui";
+import { gigabytes } from "../notes";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Notice,
+  stateTone,
+} from "../ui";
 import { HistoryTable } from "./History";
 import { scheduleLabel } from "./ScheduleFields";
 
@@ -62,9 +71,27 @@ export function Overview({
     )[0];
   const state = !plans.length || !done ? "none" : bad ? "attention" : "ok";
   const nextRun = Object.values(data.nextRuns ?? {}).sort()[0];
+  const full = (data.disks ?? [])
+    .filter((d) => d.usedPercent >= 90)
+    .sort((a, b) => b.usedPercent - a.usedPercent)[0];
+  const fullName = full
+    ? plans
+        .find((p) => p.id === full.planId)
+        ?.destinations.find((d) => d.id === full.destinationId)?.name
+    : undefined;
 
   return (
     <div className="gx-stack">
+      {full && fullName ? (
+        <Notice kind="error">
+          <strong>{o.diskFullTitle}.</strong>{" "}
+          {format(o.diskFullBody, {
+            name: fullName,
+            n: full.usedPercent,
+            free: gigabytes(full.freeBytes),
+          })}
+        </Notice>
+      ) : null}
       <Card className="gx-hero">
         <div className="gx-ring" style={{ ["--p" as string]: pct }}>
           <div className="gx-ring__inner">{pct}%</div>

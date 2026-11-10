@@ -4,6 +4,7 @@ import type { ClientRecord } from "./repo";
 import {
   explain,
   parseSettings,
+  readNotes,
   REPORT_LIMITS,
   routeReport,
   runReportDigest,
@@ -371,5 +372,59 @@ describe("email content", () => {
 
   it("test email names the addresses", () => {
     expect(testReportEmail(ctx).text).toContain("Sent to: owner@mehta.in");
+  });
+});
+
+describe("run notes", () => {
+  const ctx = {
+    client: { name: "Mehta Traders" },
+    device: { machineName: "ACCOUNTS-PC" },
+    settings: { emails: ["owner@mehta.in"], mode: "all" as const },
+    contact: "",
+    now,
+  };
+  const ok = {
+    runId: "r",
+    planName: "Accounts",
+    destinationName: "SSD",
+    scheduleKind: "daily" as const,
+    state: "succeeded" as const,
+    startedAt: new Date("2026-11-10T07:30:00Z"),
+    finishedAt: new Date("2026-11-10T07:31:00Z"),
+    error: "",
+    notes: "",
+  };
+
+  it("reads cleanup, warnings and info lines", () => {
+    const n = readNotes(
+      [
+        "Backup disk found at F:\\ (was E:\\)",
+        "Some files could not be read and were skipped",
+        "Cleanup skipped: some files could not be read",
+        "Backup disk is 93% full (4.2 GB free)",
+      ].join("\n"),
+    );
+    expect(n.cleanup).toBe("Skipped this time (backup is safe)");
+    expect(n.warnings).toHaveLength(2);
+    expect(n.warnings[1]).toContain("93% full (4.2 GB free)");
+    expect(n.info[0]).toContain("found at F:\\");
+  });
+
+  it("a success with warnings is not reported as all clear", () => {
+    const m = singleReportEmail(
+      { ...ok, notes: "Backup disk is 95% full (1.0 GB free)" },
+      ctx,
+    );
+    expect(m.subject).toBe(
+      "⚠️ Backup completed with warnings · Accounts · Mehta Traders",
+    );
+    expect(m.html).toContain("Please note");
+    expect(m.html).not.toContain("No action needed");
+    const clean = singleReportEmail(
+      { ...ok, notes: "Backup disk found at F:\\ (was E:\\)" },
+      ctx,
+    );
+    expect(clean.subject.startsWith("✅ Backup completed ·")).toBe(true);
+    expect(clean.html).toContain("Good to know");
   });
 });

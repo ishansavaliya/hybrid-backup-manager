@@ -194,7 +194,9 @@
       "viewHistory": "View history",
       "destinationsCount": "Destinations: {n}",
       "foldersCount": "Folders: {n}",
-      "nextBackup": "Next backup {when}"
+      "nextBackup": "Next backup {when}",
+      "diskFullTitle": "Backup disk almost full",
+      "diskFullBody": "{name} is {n}% full ({free} free). Free up space or turn on “Delete old versions automatically”."
     },
     "plans": {
       "title": "Backup plans",
@@ -226,7 +228,8 @@
       "connectTitle": "Connect an existing backup",
       "connectBody": "Use this on a new PC. Enter this destination's key from your recovery kit.",
       "connectKey": "Key from the recovery kit",
-      "connectOk": "Backup connected. You can restore from it now."
+      "connectOk": "Backup connected. You can restore from it now.",
+      "diskFull": "{n}% full"
     },
     "wizard": {
       "title": "Create a backup plan",
@@ -241,7 +244,7 @@
       "exclusions": "Skip these files (one pattern per line)",
       "exclusionsHint": "Example: *.tmp",
       "fileLevel": "Bakvion backs up files and folders. It does not create full system images.",
-      "destHint": "Choose an external disk, another drive or a folder. Google Drive support comes next.",
+      "destHint": "Choose an external disk, another drive or a folder, or use Google Drive.",
       "addDestination": "Add destination",
       "destName": "Destination name",
       "destDefault": "Destination {n}",
@@ -264,7 +267,20 @@
       "keepDaily": "Daily versions",
       "keepWeekly": "Weekly versions",
       "keepMonthly": "Monthly versions",
-      "keyNote": "Bakvion creates a secure encryption key for each destination. After setting up, save your recovery kit from Settings."
+      "keyNote": "Bakvion creates a secure encryption key for each destination. After setting up, save your recovery kit from Settings.",
+      "addDrive": "Google Drive",
+      "driveDefault": "Google Drive",
+      "driveTitle": "Back up to Google Drive",
+      "driveIntro": "Bakvion saves the encrypted backup in your Google Drive folder on this PC, and Google Drive for desktop uploads it.",
+      "driveStep1": "Install Google Drive for desktop (google.com/drive/download) and sign in.",
+      "driveStep2": "Open Google Drive settings (gear icon) → Preferences → Google Drive.",
+      "driveStep3": "Choose “Mirror files” and click Save. Wait until “My Drive” appears in your user folder.",
+      "driveStep4": "Come back here and click “Check again”.",
+      "driveNote": "Mirror mode also keeps a copy on this PC, so the C: drive needs free space. Backups reach Google only after Drive finishes uploading.",
+      "driveStream": "Google Drive is set to “Stream files”. Bakvion works in the background and cannot use a streamed drive. Switch to “Mirror files” (steps 2 and 3).",
+      "driveNotFound": "No Google Drive folder found on this PC yet.",
+      "driveCheck": "Check again",
+      "driveChoose": "Choose the folder myself"
     },
     "restore": {
       "title": "Restore",
@@ -307,7 +323,12 @@
       "emptyTitle": "Your backup history starts here",
       "emptyBody": "Backups appear here after they run.",
       "cleaned": "Old versions cleaned up",
-      "cleanupSkipped": "Cleanup skipped"
+      "cleanupSkipped": "Cleanup skipped",
+      "noShadow": "Open files may have been skipped (no Windows snapshot)",
+      "shadowFailed": "Open files were read directly",
+      "unreadable": "Some files could not be read",
+      "diskFull": "Disk {n}% full ({free} free)",
+      "relocated": "Disk found at {now} (was {was})"
     },
     "settings": {
       "title": "Settings",

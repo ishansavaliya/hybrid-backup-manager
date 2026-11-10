@@ -38,6 +38,9 @@ async function mock(
     plans?: unknown[];
     nextRuns?: Record<string, string>;
     kit?: { needed: boolean; savedAt: string | null };
+    disks?: unknown[];
+    executions?: unknown[];
+    drive?: { path: string; mode: string }[];
   },
 ) {
   await page.addInitScript(
@@ -67,11 +70,14 @@ async function mock(
               result: {
                 status: { version: "0.1.0", mode: "full", capabilities: [] },
                 plans: o.plans ?? [],
-                executions: [],
+                executions: o.executions ?? [],
+                disks: o.disks ?? [],
                 nextRuns: o.nextRuns ?? {},
                 kit: o.kit ?? { needed: false, savedAt: null },
               },
             };
+          if (method === "findGoogleDrive")
+            return { version: 1, result: { folders: o.drive ?? [] } };
           if (method === "reportSettings")
             return {
               version: 1,
@@ -279,5 +285,118 @@ test("email reports: shows saved settings, saves changes, sends a test", async (
     .toBe(true);
   await expect(
     page.getByText("Test email sent to owner@shop.in, ca@firm.in."),
+  ).toBeVisible();
+});
+
+test("almost-full disk shows a banner and a badge", async ({ page }) => {
+  await mock(page, {
+    plans: [plan],
+    disks: [
+      {
+        planId: "p1",
+        destinationId: "d1",
+        usedPercent: 93,
+        freeBytes: 4_200_000_000,
+        totalBytes: 60_000_000_000,
+        checkedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  await page.goto("/");
+  await expect(
+    page.getByText(
+      "Office SSD is 93% full (4.2 GB free). Free up space or turn on “Delete old versions automatically”.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Backup plans", exact: true }).click();
+  await expect(page.getByText("93% full", { exact: true })).toBeVisible();
+});
+
+async function openDestinationStep(page: Page) {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create backup plan" })
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Plan name").fill("Docs");
+  await dialog.getByRole("button", { name: "Add folder" }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  return dialog;
+}
+
+test("Google Drive mirror folder is added as a destination", async ({
+  page,
+}) => {
+  await mock(page, {
+    drive: [
+      { path: "G:\\My Drive", mode: "stream" },
+      { path: "C:\\Users\\Asha\\My Drive", mode: "mirror" },
+    ],
+  });
+  const dialog = await openDestinationStep(page);
+  await dialog.getByRole("button", { name: "Google Drive" }).click();
+  await expect(dialog.getByLabel("Destination name")).toHaveValue(
+    "Google Drive",
+  );
+  await expect(
+    dialog.getByText("C:\\Users\\Asha\\My Drive\\BakvionRepository"),
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Continue" })).toBeEnabled();
+});
+
+test("Google Drive in stream mode shows the setup guide", async ({ page }) => {
+  await mock(page, { drive: [{ path: "G:\\My Drive", mode: "stream" }] });
+  const dialog = await openDestinationStep(page);
+  await dialog.getByRole("button", { name: "Google Drive" }).click();
+  await expect(
+    dialog.getByText("Google Drive is set to “Stream files”.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Choose “Mirror files” and click Save.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Check again" }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+  // Choosing the mirror folder by hand also works.
+  await dialog
+    .getByRole("button", { name: "Choose the folder myself" })
+    .click();
+  await expect(dialog.getByLabel("Destination name")).toHaveValue(
+    "Google Drive",
+  );
+});
+
+test("history shows run notes in plain words", async ({ page }) => {
+  await mock(page, {
+    plans: [plan],
+    executions: [
+      {
+        id: "e1",
+        planId: "p1",
+        destinationId: "d1",
+        state: "succeeded",
+        snapshotId: "abcdef1234567890",
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        error: "",
+        notes:
+          "Backup disk found at F:\\ (was E:\\)\nSome files could not be read and were skipped\nBackup disk is 95% full (1.0 GB free)",
+      },
+    ],
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await expect(
+    page.getByText("Disk found at F:\\ (was E:\\)", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Some files could not be read", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Disk 95% full (1.0 GB free)", { exact: false }),
   ).toBeVisible();
 });

@@ -14,6 +14,7 @@ import (
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/license"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -170,7 +171,8 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 	if _, err = a.Store.DB.Exec(`UPDATE job_executions SET state='running',started_at=? WHERE id=?`, startedAt, id); err != nil {
 		return false, err
 	}
-	var snapshot, notes string
+	var snapshot string
+	var noteList []string
 	validated := cfg.Plan
 	validated.Destinations = []Destination{cfg.Destination}
 	err = a.Validate(validated)
@@ -179,16 +181,43 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 		dest, err = a.withKey(cfg.Destination, false)
 	}
 	if err == nil {
-		snapshot, err = a.Engine.Backup(ctx, dest, cfg.Plan)
-	}
-	if err == nil && cfg.Plan.Retention.Enabled && ctx.Err() == nil {
-		// Cleanup only after a confirmed snapshot; a cleanup failure never fails the backup.
-		if forgetErr := a.Engine.Forget(ctx, dest, cfg.Plan.ID, cfg.Plan.Retention); forgetErr != nil {
-			notes = "Cleanup skipped: " + forgetErr.Error()
-		} else {
-			notes = "Old versions cleaned up"
+		var moved string
+		if dest, moved = a.locate(dest); moved != "" {
+			noteList = append(noteList, moved)
 		}
 	}
+	partial := false
+	if err == nil {
+		var res BackupResult
+		res, err = a.Engine.BackupDetailed(ctx, dest, cfg.Plan)
+		snapshot = res.Snapshot
+		noteList = append(noteList, res.Warnings...)
+		for _, w := range res.Warnings {
+			partial = partial || w == WarnUnreadable
+		}
+	}
+	if err == nil && cfg.Plan.Retention.Enabled && ctx.Err() == nil {
+		// Cleanup only after a complete, confirmed snapshot: a partial one must
+		// never replace an older complete version. A cleanup failure never fails the backup.
+		switch forgetErr := error(nil); {
+		case partial:
+			noteList = append(noteList, "Cleanup skipped: some files could not be read")
+		default:
+			if forgetErr = a.Engine.Forget(ctx, dest, cfg.Plan.ID, cfg.Plan.Retention); forgetErr != nil {
+				noteList = append(noteList, "Cleanup skipped: "+forgetErr.Error())
+			} else {
+				noteList = append(noteList, "Old versions cleaned up")
+			}
+		}
+	}
+	// Free space is measured after every run, including failed ones (a full
+	// disk is a common cause).
+	if info, volErr := a.rememberVolume(cfg.Destination, dest.Repository); volErr == nil {
+		if n := diskNote(info); n != "" {
+			noteList = append(noteList, n)
+		}
+	}
+	notes := strings.Join(noteList, "\n")
 	state := "succeeded"
 	message := ""
 	if err != nil {
@@ -250,6 +279,8 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		return a.handleAccount(ctx, r)
 	case "reportSettings", "setReportSettings", "sendTestReport":
 		return a.handleReports(ctx, r)
+	case "findGoogleDrive":
+		return map[string]any{"folders": FindGoogleDrive()}, nil
 	case "overview":
 		plans, err := a.Store.Plans()
 		if err != nil {
@@ -271,7 +302,11 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"status": map[string]any{"version": a.AppVersion, "mode": mode, "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore", "schedules", "retention", "managed-keys"}}, "plans": plans, "executions": jobs, "nextRuns": next, "kit": kit}, nil
+		disks, err := a.DiskUsages(plans)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"status": map[string]any{"version": a.AppVersion, "mode": mode, "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore", "schedules", "retention", "managed-keys", "shadow-copy", "disk-relocation", "google-drive"}}, "plans": plans, "executions": jobs, "nextRuns": next, "kit": kit, "disks": disks}, nil
 	case "savePlan":
 		var p Plan
 		if err := decode(r.Params, &p); err != nil {
@@ -322,6 +357,18 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Keys are stored by the saved path, so fetch the key before relocating.
+		if r.Method != "testDestination" && r.Method != "initRepository" && r.Method != "connectDestination" {
+			if d, err = a.withKey(d, false); err != nil {
+				return nil, err
+			}
+		}
+		if r.Method != "initRepository" && r.Method != "connectDestination" {
+			saved := d
+			d, _ = a.locate(d)
+			current := d.Repository
+			defer func() { _, _ = a.rememberVolume(saved, current) }()
+		}
 		switch r.Method {
 		case "testDestination":
 			return map[string]bool{"writable": true}, TestLocalDestination(ctx, d)
@@ -333,14 +380,13 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 			if err = a.Validate(plan); err != nil {
 				return nil, err
 			}
-			return map[string]bool{"initialized": true}, a.SetUpDestination(ctx, d)
-		case "connectDestination":
-			return map[string]bool{"connected": true}, a.ConnectDestination(ctx, d, p.Key)
-		}
-		if r.Method != "testDestination" && r.Method != "connectDestination" {
-			if d, err = a.withKey(d, false); err != nil {
+			if err = a.SetUpDestination(ctx, d); err != nil {
 				return nil, err
 			}
+			_, _ = a.rememberVolume(d, d.Repository)
+			return map[string]bool{"initialized": true}, nil
+		case "connectDestination":
+			return map[string]bool{"connected": true}, a.ConnectDestination(ctx, d, p.Key)
 		}
 		switch r.Method {
 		case "snapshots":

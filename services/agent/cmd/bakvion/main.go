@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 )
@@ -45,7 +46,8 @@ func run() error {
 	if len(args) != 1 {
 		return errors.New("usage: bakvion [flags] request|work|serve|service|recover|snapshots; flags precede command")
 	}
-	engine := core.Engine{Binary: *binary}
+	// Windows: read open files (Tally, Outlook) from a shadow copy.
+	engine := core.Engine{Binary: *binary, FSSnapshot: runtime.GOOS == "windows"}
 	if args[0] == "recover" || args[0] == "snapshots" {
 		d := core.Destination{Repository: *repo, PasswordFile: *password}
 		if args[0] == "snapshots" {

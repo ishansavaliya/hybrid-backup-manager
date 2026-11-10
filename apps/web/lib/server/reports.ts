@@ -353,16 +353,73 @@ const route = (r: Pick<ReportInput, "planName" | "destinationName">) =>
   r.destinationName ? `${r.planName} → ${r.destinationName}` : r.planName;
 
 /** One run: completed, failed or interrupted. */
+/** Splits a run's notes (one per line) into the cleanup result and warnings. */
+export function readNotes(notes: string): {
+  cleanup: string | null;
+  warnings: string[];
+  /** Notes that need no action (e.g. the disk moved to another letter). */
+  info: string[];
+} {
+  let cleanup: string | null = null;
+  const warnings: string[] = [];
+  const info: string[] = [];
+  for (const raw of notes.split("\n").map((l) => l.trim())) {
+    if (!raw) continue;
+    if (raw === "Old versions cleaned up") cleanup = "Old versions cleaned up";
+    else if (raw.startsWith("Cleanup skipped"))
+      cleanup = "Skipped this time (backup is safe)";
+    else if (raw.startsWith("Backed up without a Windows snapshot"))
+      warnings.push(
+        "Windows could not take a snapshot, so files open in other programs (like Tally) may have been skipped.",
+      );
+    else if (raw.startsWith("Windows snapshot unavailable"))
+      warnings.push(
+        "Windows could not take a snapshot of one drive; open files there were read directly.",
+      );
+    else if (raw.startsWith("Some files could not be read"))
+      warnings.push(
+        "Some files could not be read (often because another program had them open) and were skipped. Older versions were kept.",
+      );
+    else {
+      const full = /^Backup disk is (\d+)% full \((.+) free\)$/.exec(raw);
+      const moved = /^Backup disk found at (.+) \(was (.+)\)$/.exec(raw);
+      if (full)
+        warnings.push(
+          `The backup disk is ${full[1]}% full (${full[2]} free). Free up space or turn on “Delete old versions automatically”.`,
+        );
+      else if (moved)
+        info.push(
+          `The backup disk was found at ${moved[1]} (it was ${moved[2]} before). No action needed.`,
+        );
+      else info.push(raw);
+    }
+  }
+  return { cleanup, warnings, info };
+}
+
+function noteBox(tone: Tone, label: string, lines: string[]) {
+  if (!lines.length) return "";
+  const t = TONE[tone];
+  return `<div style="margin-top:16px;padding:14px 16px;border-radius:12px;background:${t.bg};border-left:4px solid ${t.fg}">
+<div style="font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:${t.fg}">${esc(label)}</div>
+<ul style="margin:6px 0 0;padding-left:18px;color:${C.text};font-size:14px;line-height:1.6">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+</div>`;
+}
+
+/** One run: completed, failed or interrupted. */
 export function singleReportEmail(r: ReportInput, c: ReportContext): Mail {
-  const tone = toneOf(r.state);
-  const title =
-    r.state === "succeeded"
+  const notes = readNotes(r.notes);
+  const ok = r.state === "succeeded";
+  const warned = ok && notes.warnings.length > 0;
+  const tone = warned ? "warn" : toneOf(r.state);
+  const title = warned
+    ? "Backup completed with warnings"
+    : ok
       ? "Backup completed"
       : r.state === "failed"
         ? "Backup failed"
         : "Backup interrupted";
-  const emoji =
-    r.state === "succeeded" ? "✅" : r.state === "failed" ? "❌" : "⚠️";
+  const emoji = warned ? "⚠️" : ok ? "✅" : r.state === "failed" ? "❌" : "⚠️";
   const rows: [string, string][] = [
     ["Business", c.client.name],
     ["PC", pcName(c)],
@@ -371,27 +428,24 @@ export function singleReportEmail(r: ReportInput, c: ReportContext): Mail {
     ["Started", ist(r.startedAt)],
     ["Took", duration(r.startedAt, r.finishedAt)],
   ];
-  if (r.notes)
-    rows.push([
-      "Cleanup",
-      r.notes.startsWith("Cleanup skipped")
-        ? "Skipped this time (backup is safe)"
-        : "Old versions cleaned up",
-    ]);
-  const ok = r.state === "succeeded";
+  if (notes.cleanup) rows.push(["Cleanup", notes.cleanup]);
   const f = footer(c);
   const body = `${hero(tone, title, route(r))}${details(rows)}${
     ok
-      ? `<p style="margin:20px 0 0;padding:12px 14px;border-radius:10px;background:${TONE.ok.bg};color:${TONE.ok.fg};font-size:14px;font-weight:600">🔒 Your files are encrypted and safely stored. No action needed.</p>`
-      : problem(tone, r)
-  }`;
+      ? warned
+        ? ""
+        : `<p style="margin:20px 0 0;padding:12px 14px;border-radius:10px;background:${TONE.ok.bg};color:${TONE.ok.fg};font-size:14px;font-weight:600">🔒 Your files are encrypted and safely stored. No action needed.</p>`
+      : problem(toneOf(r.state), r)
+  }${noteBox("warn", "Please note", notes.warnings)}${noteBox("info", "Good to know", notes.info)}`;
   const explained = ok ? null : explain(r);
   return {
     subject: `${emoji} ${title} · ${r.planName} · ${c.client.name}`,
     html: shell({
-      preheader: ok
-        ? `${r.planName} backed up at ${IST_TIME.format(r.finishedAt)}.`
-        : `${explained!.reason} ${explained!.steps[0]}`,
+      preheader: explained
+        ? `${explained.reason} ${explained.steps[0]}`
+        : warned
+          ? notes.warnings[0]!
+          : `${r.planName} backed up at ${IST_TIME.format(r.finishedAt)}.`,
       body,
       footer: f.html,
     }),
@@ -407,10 +461,18 @@ export function singleReportEmail(r: ReportInput, c: ReportContext): Mail {
             ...explained.steps.map((s, i) => `${i + 1}. ${s}`),
             ...(r.error ? ["", `Technical details: ${r.error}`] : []),
           ]
-        : [
-            "",
-            "Your files are encrypted and safely stored. No action needed.",
-          ]),
+        : warned
+          ? []
+          : [
+              "",
+              "Your files are encrypted and safely stored. No action needed.",
+            ]),
+      ...(notes.warnings.length
+        ? ["", "Please note:", ...notes.warnings.map((w) => `- ${w}`)]
+        : []),
+      ...(notes.info.length
+        ? ["", "Good to know:", ...notes.info.map((w) => `- ${w}`)]
+        : []),
       "",
       f.text,
     ].join("\n"),
@@ -447,9 +509,13 @@ export function summaryReportEmail(
   const rows = shown
     .map((r, i) => {
       const t = TONE[toneOf(r.state)];
-      const reason = r.state === "succeeded" ? "" : explain(r).reason;
+      const warning =
+        r.state === "succeeded" ? readNotes(r.notes).warnings[0] : undefined;
+      const reason =
+        r.state === "succeeded" ? (warning ?? "") : explain(r).reason;
+      const reasonColor = warning ? TONE.warn.fg : t.fg;
       return `<tr><td style="padding:11px 0;${i ? `border-top:1px solid ${C.soft};` : ""}vertical-align:top;width:22px"><span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:${t.bg};color:${t.fg};font-size:11px;font-weight:800;line-height:18px;text-align:center">${t.icon}</span></td>
-<td style="padding:11px 8px;${i ? `border-top:1px solid ${C.soft};` : ""}vertical-align:top"><div style="font-size:14px;font-weight:700;color:${C.text}">${esc(route(r))}</div>${reason ? `<div style="margin-top:2px;font-size:13px;color:${t.fg}">${esc(reason)}</div>` : ""}</td>
+<td style="padding:11px 8px;${i ? `border-top:1px solid ${C.soft};` : ""}vertical-align:top"><div style="font-size:14px;font-weight:700;color:${C.text}">${esc(route(r))}</div>${reason ? `<div style="margin-top:2px;font-size:13px;color:${reasonColor}">${esc(reason)}</div>` : ""}</td>
 <td style="padding:11px 0;${i ? `border-top:1px solid ${C.soft};` : ""}vertical-align:top;text-align:right;white-space:nowrap;font-size:13px;color:${C.muted}">${esc(IST_TIME.format(r.finishedAt))}</td></tr>`;
     })
     .join("");

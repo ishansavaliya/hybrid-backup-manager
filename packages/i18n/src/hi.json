@@ -194,7 +194,9 @@
       "viewHistory": "इतिहास देखें",
       "destinationsCount": "डेस्टिनेशन: {n}",
       "foldersCount": "फ़ोल्डर: {n}",
-      "nextBackup": "अगला बैकअप {when}"
+      "nextBackup": "अगला बैकअप {when}",
+      "diskFullTitle": "बैकअप डिस्क लगभग भर गई है",
+      "diskFullBody": "{name} {n}% भरी है ({free} ख़ाली)। जगह ख़ाली करें या “पुराने वर्ज़न अपने-आप हटाएँ” चालू करें।"
     },
     "plans": {
       "title": "बैकअप प्लान",
@@ -226,7 +228,8 @@
       "connectTitle": "मौजूदा बैकअप जोड़ें",
       "connectBody": "नए PC पर इसका इस्तेमाल करें। अपनी रिकवरी किट से इस डेस्टिनेशन की की डालें।",
       "connectKey": "रिकवरी किट की की",
-      "connectOk": "बैकअप जुड़ गया। अब आप इससे रिस्टोर कर सकते हैं।"
+      "connectOk": "बैकअप जुड़ गया। अब आप इससे रिस्टोर कर सकते हैं।",
+      "diskFull": "{n}% भरी"
     },
     "wizard": {
       "title": "बैकअप प्लान बनाएँ",
@@ -241,7 +244,7 @@
       "exclusions": "इन फ़ाइलों को छोड़ें (हर लाइन में एक पैटर्न)",
       "exclusionsHint": "उदाहरण: *.tmp",
       "fileLevel": "Bakvion फ़ाइलों और फ़ोल्डरों का बैकअप लेता है। यह पूरे सिस्टम की इमेज नहीं बनाता।",
-      "destHint": "एक्सटर्नल डिस्क, दूसरी ड्राइव या फ़ोल्डर चुनें। Google Drive सपोर्ट जल्द आ रहा है।",
+      "destHint": "एक्सटर्नल डिस्क, दूसरी ड्राइव या फ़ोल्डर चुनें, या Google Drive इस्तेमाल करें।",
       "addDestination": "डेस्टिनेशन जोड़ें",
       "destName": "डेस्टिनेशन का नाम",
       "destDefault": "डेस्टिनेशन {n}",
@@ -264,7 +267,20 @@
       "keepDaily": "रोज़ के वर्ज़न",
       "keepWeekly": "हफ़्ते के वर्ज़न",
       "keepMonthly": "महीने के वर्ज़न",
-      "keyNote": "Bakvion हर डेस्टिनेशन के लिए एक सुरक्षित एन्क्रिप्शन की बनाता है। सेटअप के बाद सेटिंग्स से अपनी रिकवरी किट सेव करें।"
+      "keyNote": "Bakvion हर डेस्टिनेशन के लिए एक सुरक्षित एन्क्रिप्शन की बनाता है। सेटअप के बाद सेटिंग्स से अपनी रिकवरी किट सेव करें।",
+      "addDrive": "Google Drive",
+      "driveDefault": "Google Drive",
+      "driveTitle": "Google Drive पर बैकअप",
+      "driveIntro": "Bakvion एन्क्रिप्टेड बैकअप इस PC के आपके Google Drive फ़ोल्डर में सेव करता है, और Google Drive for desktop उसे अपलोड करता है।",
+      "driveStep1": "Google Drive for desktop (google.com/drive/download) इंस्टॉल करें और साइन इन करें।",
+      "driveStep2": "Google Drive सेटिंग्स (गियर आइकन) → Preferences → Google Drive खोलें।",
+      "driveStep3": "“Mirror files” चुनें और Save दबाएँ। आपके यूज़र फ़ोल्डर में “My Drive” दिखने तक रुकें।",
+      "driveStep4": "यहाँ वापस आकर “फिर से जाँचें” दबाएँ।",
+      "driveNote": "Mirror मोड इस PC पर भी एक कॉपी रखता है, इसलिए C: ड्राइव में जगह चाहिए। Drive के अपलोड पूरा करने के बाद ही बैकअप Google तक पहुँचता है।",
+      "driveStream": "Google Drive “Stream files” पर सेट है। Bakvion बैकग्राउंड में चलता है और स्ट्रीम ड्राइव इस्तेमाल नहीं कर सकता। “Mirror files” पर बदलें (स्टेप 2 और 3)।",
+      "driveNotFound": "इस PC पर अभी कोई Google Drive फ़ोल्डर नहीं मिला।",
+      "driveCheck": "फिर से जाँचें",
+      "driveChoose": "फ़ोल्डर ख़ुद चुनें"
     },
     "restore": {
       "title": "रिस्टोर",
@@ -307,7 +323,12 @@
       "emptyTitle": "आपका बैकअप इतिहास यहाँ शुरू होगा",
       "emptyBody": "बैकअप चलने के बाद यहाँ दिखेंगे।",
       "cleaned": "पुराने वर्ज़न हटाए गए",
-      "cleanupSkipped": "सफ़ाई नहीं हो सकी"
+      "cleanupSkipped": "सफ़ाई नहीं हो सकी",
+      "noShadow": "खुली फ़ाइलें छूट सकती हैं (Windows स्नैपशॉट नहीं)",
+      "shadowFailed": "खुली फ़ाइलें सीधे पढ़ी गईं",
+      "unreadable": "कुछ फ़ाइलें पढ़ी नहीं जा सकीं",
+      "diskFull": "डिस्क {n}% भरी ({free} ख़ाली)",
+      "relocated": "डिस्क {now} पर मिली (पहले {was})"
     },
     "settings": {
       "title": "सेटिंग्स",

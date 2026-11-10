@@ -2,6 +2,7 @@ import { Activity } from "lucide-react";
 import type { Execution, Plan } from "@bakvion/shared-types";
 import { useI18n } from "../i18n";
 import { Badge, EmptyState, stateTone } from "../ui";
+import { runNotes } from "../notes";
 
 export function HistoryTable({
   plans,
@@ -56,14 +57,20 @@ export function HistoryTable({
                 <td className="gx-muted">
                   {j.error ||
                     (j.snapshotId ? j.snapshotId.slice(0, 12) : h.waiting)}
-                  {j.notes ? (
-                    <span title={j.notes}>
+                  {runNotes(t, j.notes).map((n) => (
+                    <span
+                      key={n.raw}
+                      title={n.raw}
+                      style={
+                        n.tone === "warning"
+                          ? { color: "var(--gx-warn)" }
+                          : undefined
+                      }
+                    >
                       {" · "}
-                      {j.notes.startsWith("Cleanup skipped")
-                        ? h.cleanupSkipped
-                        : h.cleaned}
+                      {n.text}
                     </span>
-                  ) : null}
+                  ))}
                 </td>
               )}
             </tr>
