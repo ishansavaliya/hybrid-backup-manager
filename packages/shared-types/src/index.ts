@@ -39,7 +39,7 @@ export interface SnapshotNode {
 }
 export interface AgentStatus {
   version: string;
-  mode: "offline";
+  mode: "full" | "restore_only" | "signed_out";
   capabilities: string[];
 }
 export interface AgentOverview {

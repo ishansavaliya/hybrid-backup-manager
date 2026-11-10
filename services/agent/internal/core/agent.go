@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/flock"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/license"
 	"os"
 	"path/filepath"
 	"time"
@@ -227,7 +228,11 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"status": map[string]any{"version": "0.1.0", "mode": "offline", "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore"}}, "plans": plans, "executions": jobs}, nil
+		mode := license.ModeSignedOut
+		if st, accountErr := a.AccountStatus(); accountErr == nil {
+			mode = st.Mode
+		}
+		return map[string]any{"status": map[string]any{"version": a.AppVersion, "mode": mode, "capabilities": []string{"local-backup", "snapshot-browse", "verified-new-folder-restore"}}, "plans": plans, "executions": jobs}, nil
 	case "savePlan":
 		var p Plan
 		if err := decode(r.Params, &p); err != nil {

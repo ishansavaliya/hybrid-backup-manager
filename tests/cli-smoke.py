@@ -1,4 +1,7 @@
-"""Real subprocess backup/recovery smoke test. All data lives in a temporary fixture."""
+"""Real subprocess backup/recovery smoke test. All data lives in a temporary fixture.
+
+The agent must be built with `-tags bakvion_dev` so BAKVION_DEV_UNLICENSED=1 bypasses membership.
+"""
 import argparse
 import json
 import os
@@ -10,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--agent', required=True)
 parser.add_argument('--restic', required=True)
 args = parser.parse_args()
+env = {**os.environ, 'BAKVION_DEV_UNLICENSED': '1'}
 agent = str(Path(args.agent).resolve())
 restic = str(Path(args.restic).resolve())
 with tempfile.TemporaryDirectory(prefix='bakvion-cli-test-') as folder:
@@ -24,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='bakvion-cli-test-') as folder:
     common = [agent, '--restic', restic, '--state', str(state)]
 
     def request(method, params=None):
-        result = subprocess.run(common + ['request'], input=json.dumps({'version': 1, 'method': method, 'params': params}), text=True, capture_output=True, check=True)
+        result = subprocess.run(common + ['request'], input=json.dumps({'version': 1, 'method': method, 'params': params}), text=True, capture_output=True, check=True, env=env)
         payload = json.loads(result.stdout)
         if 'error' in payload:
             raise AssertionError(payload['error'])
@@ -35,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='bakvion-cli-test-') as folder:
     request('testDestination', params)
     request('initRepository', params)
     request('startBackup', {'planId': 'smoke'})
-    subprocess.run(common + ['work'], check=True)
+    subprocess.run(common + ['work'], check=True, env=env)
     overview = request('overview')
     assert overview['executions'][0]['state'] == 'succeeded', overview
     snapshot = overview['executions'][0]['snapshotId']

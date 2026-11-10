@@ -44,6 +44,8 @@ var (
 	licenseRetryInterval   = 5 * time.Minute
 )
 
+const signOutTimeout = 3 * time.Second
+
 const syncWarningAfter = 3 * 24 * time.Hour
 
 // gatedMethods create or schedule new backups and require full membership.
@@ -201,7 +203,10 @@ func (a *Agent) SignOut(ctx context.Context) error {
 		return err
 	}
 	if row.DeviceToken != "" && a.Cloud != nil {
-		_ = a.Cloud.SignOut(ctx, row.DeviceToken)
+		// Best effort with its own short deadline; the local session is already cleared.
+		callCtx, cancel := context.WithTimeout(ctx, signOutTimeout)
+		_ = a.Cloud.SignOut(callCtx, row.DeviceToken)
+		cancel()
 	}
 	return nil
 }
@@ -248,7 +253,10 @@ func (a *Agent) licenseTick(ctx context.Context) time.Duration {
 // LicenseLoop refreshes now, then every 6 h after success or 5 min after failure, until ctx ends.
 func (a *Agent) LicenseLoop(ctx context.Context) {
 	for {
-		timer := time.NewTimer(a.licenseTick(ctx))
+		wait := a.licenseTick(ctx)
+		// Record the time even when the PC stays idle and offline, so a clock rollback is noticed.
+		_, _ = a.AccountStatus()
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
 			timer.Stop()

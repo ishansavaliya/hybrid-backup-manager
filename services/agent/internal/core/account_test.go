@@ -346,6 +346,16 @@ func TestClockRollbackRestoreOnlyUntilSuccessfulSync(t *testing.T) {
 	}
 }
 
+func TestServerClockAheadStaysRestoreOnlyAfterRefresh(t *testing.T) {
+	e := newAccountEnv(t)
+	e.signIn(t)
+	e.fake.now = func() time.Time { return e.clock.Now().Add(time.Hour) }
+	st := decodeStatus(t, e.call(t, "refreshLicense", nil))
+	if st.Mode != license.ModeRestoreOnly || st.Reason != "clock" {
+		t.Fatalf("server 1 h ahead: %+v", st)
+	}
+}
+
 func TestHighWaterAdvancesAndPersists(t *testing.T) {
 	e := newAccountEnv(t)
 	e.signIn(t)

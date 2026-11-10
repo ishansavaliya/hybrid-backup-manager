@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/Microsoft/go-winio"
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/core"
 	"golang.org/x/sys/windows"
@@ -13,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"sync"
 	"time"
 )
@@ -33,6 +35,7 @@ func serve(ctx context.Context, a *core.Agent, owner string) (returnErr error) {
 	defer cancel()
 	worker := make(chan error, 1)
 	go func() { worker <- a.Work(ctx, true); cancel() }()
+	go a.LicenseLoop(ctx)
 	go func() { <-ctx.Done(); listener.Close() }()
 	var active sync.WaitGroup
 	defer func() {
@@ -130,4 +133,15 @@ func service(a *core.Agent, owner string) error {
 		return errors.New("valid --owner-sid required")
 	}
 	return svc.Run("BakvionService", handler{a, owner})
+}
+
+// machineInfo returns the host name and "Windows major.minor.build", each at most 64 bytes.
+func machineInfo() (string, string) {
+	host, _ := os.Hostname()
+	v := windows.RtlGetVersion()
+	win := fmt.Sprintf("Windows %d.%d.%d", v.MajorVersion, v.MinorVersion, v.BuildNumber)
+	if len(host) > 64 {
+		host = host[:64]
+	}
+	return host, win
 }
