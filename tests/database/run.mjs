@@ -353,6 +353,58 @@ try {
       assert.notEqual(rows[0].used_at, null);
     },
   );
+
+  await check("leads migration: RLS, browser roles blocked, constraints", async () => {
+    await db.exec(
+      await readFile(
+        new URL(
+          "../../supabase/migrations/202611100002_leads.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const { rows } = await db.query(
+      `select rowsecurity from pg_tables where schemaname='public' and tablename='leads'`,
+    );
+    assert.equal(rows[0].rowsecurity, true);
+    const { rows: ins } = await db.query(
+      `insert into leads(source, name, business, phone) values ('app','Asha','Mehta Traders','9876543210') returning status, email_sent`,
+    );
+    assert.equal(ins[0].status, "new");
+    assert.equal(ins[0].email_sent, false);
+    await assert.rejects(() =>
+      db.query(
+        `insert into leads(source, name, business, phone) values ('fax','a','b','1')`,
+      ),
+    );
+    await assert.rejects(() =>
+      db.query(
+        `insert into leads(source, name, business, phone, pcs) values ('app','a','b','1', 0)`,
+      ),
+    );
+    await assert.rejects(() =>
+      db.query(`update leads set status = 'won'`),
+    );
+    for (const role of ["anon", "authenticated"]) {
+      await db.exec(`set role ${role}`);
+      try {
+        await assert.rejects(
+          () => db.query("select * from leads"),
+          /permission denied/,
+        );
+        await assert.rejects(
+          () =>
+            db.query(
+              `insert into leads(source, name, business, phone) values ('website','x','y','1')`,
+            ),
+          /permission denied/,
+        );
+      } finally {
+        await db.exec("reset role");
+      }
+    }
+  });
 } finally {
   await db.close();
 }

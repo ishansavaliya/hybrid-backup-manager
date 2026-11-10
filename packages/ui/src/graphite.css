@@ -862,6 +862,7 @@
   text-decoration: none;
 }
 .gx-nav__icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 42px;
@@ -1886,4 +1887,59 @@
 }
 .gx-danger-zone {
   border-color: color-mix(in srgb, var(--gx-danger) 35%, var(--gx-line));
+}
+
+.gx-nav__badge {
+  position: absolute;
+  top: -5px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--gx-side);
+  border-radius: var(--gx-r-pill);
+  background: var(--gx-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ---------- Leads ---------- */
+
+.gx-lead-status {
+  width: 168px;
+}
+.gx-lead-status[data-pending] {
+  opacity: 0.6;
+}
+.gx-lead-status .gx-selectmenu {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.gx-lead-main {
+  max-width: 340px;
+}
+.gx-lead-message {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--gx-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.gx-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.gx-warn-icon {
+  display: inline-flex;
+  color: var(--gx-warn);
 }

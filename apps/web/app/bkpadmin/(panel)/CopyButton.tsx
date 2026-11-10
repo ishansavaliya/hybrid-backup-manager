@@ -8,15 +8,18 @@ export function CopyButton({
   text,
   label = "Copy",
   variant = "secondary",
+  size = "md",
 }: {
   text: string;
   label?: ReactNode;
   variant?: ButtonVariant;
+  size?: "sm" | "md";
 }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       variant={variant}
+      size={size}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);

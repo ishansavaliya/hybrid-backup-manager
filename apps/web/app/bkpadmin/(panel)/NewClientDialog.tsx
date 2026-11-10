@@ -23,7 +23,15 @@ const QUICK = [
   { label: "1 year", months: 12 },
 ];
 
-export function NewClientDialog() {
+export interface ClientPrefill {
+  leadId: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  notes: string;
+}
+
+export function NewClientDialog({ prefill }: { prefill?: ClientPrefill }) {
   const params = useSearchParams();
   const router = useRouter();
   const [open, setOpen] = useState(params.get("new") === "1");
@@ -51,6 +59,9 @@ export function NewClientDialog() {
         description="Create the business account. You can set the login and send a 6-digit code next."
       >
         <form action={action} className="gx-dialog__form">
+          {prefill ? (
+            <input type="hidden" name="leadId" value={prefill.leadId} />
+          ) : null}
           <div className="gx-dialog__body">
             {state.error ? (
               <Notice error={state.error} variant="inline" />
@@ -60,6 +71,7 @@ export function NewClientDialog() {
                 <Input
                   id="nc-name"
                   name="name"
+                  defaultValue={prefill?.name}
                   required
                   maxLength={200}
                   autoComplete="organization"
@@ -71,6 +83,7 @@ export function NewClientDialog() {
                 <Input
                   id="nc-contact"
                   name="contactPerson"
+                  defaultValue={prefill?.contactPerson}
                   maxLength={200}
                   autoComplete="name"
                 />
@@ -79,6 +92,7 @@ export function NewClientDialog() {
                 <Input
                   id="nc-phone"
                   name="phone"
+                  defaultValue={prefill?.phone}
                   type="tel"
                   inputMode="tel"
                   maxLength={40}
@@ -132,6 +146,7 @@ export function NewClientDialog() {
                 <Textarea
                   id="nc-notes"
                   name="notes"
+                  defaultValue={prefill?.notes}
                   rows={4}
                   maxLength={2000}
                   placeholder="Only visible to you"

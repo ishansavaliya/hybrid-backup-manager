@@ -9,6 +9,8 @@ import {
   type ClientSummary,
   type DeviceMode,
   type DeviceRecord,
+  type LeadRecord,
+  type LeadStatus,
   type RegisterOutcome,
   type Repo,
 } from "./repo";
@@ -22,6 +24,27 @@ const dateOrNull = (v: unknown): Date | null =>
 
 function fail(action: string, error: { message: string }): never {
   throw new Error(`${action} failed: ${error.message}`);
+}
+
+function toLead(r: Row): LeadRecord {
+  return {
+    id: str(r.id),
+    createdAt: date(r.created_at),
+    source: r.source === "app" ? "app" : "website",
+    name: str(r.name),
+    business: str(r.business),
+    phone: str(r.phone),
+    email: str(r.email),
+    city: str(r.city),
+    pcs: r.pcs === null || r.pcs === undefined ? null : Number(r.pcs),
+    message: str(r.message),
+    status: str(r.status) as LeadStatus,
+    emailSent: Boolean(r.email_sent),
+    ip: str(r.ip),
+    installId: str(r.install_id),
+    appVersion: str(r.app_version),
+    clientId: r.client_id ? str(r.client_id) : null,
+  };
 }
 
 function toClient(r: Row): ClientRecord {
@@ -414,6 +437,74 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
     async ping() {
       const { error } = await db.from("settings").select("key").limit(1);
       if (error) fail("ping", error);
+    },
+
+    async createLead(l, now) {
+      const { data, error } = await db
+        .from("leads")
+        .insert({
+          source: l.source,
+          name: l.name,
+          business: l.business,
+          phone: l.phone,
+          email: l.email,
+          city: l.city,
+          pcs: l.pcs,
+          message: l.message,
+          ip: l.ip,
+          install_id: l.installId,
+          app_version: l.appVersion,
+          created_at: iso(now),
+          updated_at: iso(now),
+        })
+        .select("id")
+        .single();
+      if (error) fail("createLead", error);
+      return str(data.id);
+    },
+
+    async markLeadEmailSent(id) {
+      const { error } = await db
+        .from("leads")
+        .update({ email_sent: true })
+        .eq("id", id);
+      if (error) fail("markLeadEmailSent", error);
+    },
+
+    async listLeads(limit) {
+      const { data, error } = await db
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) fail("listLeads", error);
+      return (data ?? []).map((r) => toLead(r as Row));
+    },
+
+    async getLead(id) {
+      const { data, error } = await db
+        .from("leads")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) fail("getLead", error);
+      return data ? toLead(data as Row) : null;
+    },
+
+    async setLeadStatus(id, status, clientId) {
+      const row: Row = { status, updated_at: iso(new Date()) };
+      if (clientId !== undefined) row.client_id = clientId;
+      const { error } = await db.from("leads").update(row).eq("id", id);
+      if (error) fail("setLeadStatus", error);
+    },
+
+    async countNewLeads() {
+      const { count, error } = await db
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "new");
+      if (error) fail("countNewLeads", error);
+      return count ?? 0;
     },
   };
 }

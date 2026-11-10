@@ -1,14 +1,16 @@
-import { Brand } from "@bakvion/ui";
+import type { Metadata } from "next";
+import { messages } from "@bakvion/i18n";
+import { Landing } from "./(site)/Landing";
 
-export default function Page() {
-  return (
-    <main className="content">
-      <Brand />
-      <h1>Backups you can rely on.</h1>
-      <p className="muted">
-        Bakvion protects your data with the Bakvion app for Windows.
-      </p>
-      <p className="muted">Download coming soon.</p>
-    </main>
-  );
+const t = messages("en").meta;
+
+export const metadata: Metadata = {
+  title: t.title,
+  description: t.description,
+  alternates: { languages: { en: "/", hi: "/hi", gu: "/gu" } },
+  openGraph: { title: t.title, description: t.description, type: "website" },
+};
+
+export default function Home() {
+  return <Landing lang="en" />;
 }

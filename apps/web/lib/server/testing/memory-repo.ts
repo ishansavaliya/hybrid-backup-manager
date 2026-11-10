@@ -7,6 +7,7 @@ import {
   type ClientSummary,
   type DeviceInfo,
   type DeviceRecord,
+  type LeadRecord,
   type RegisterOutcome,
   type Repo,
 } from "../repo";
@@ -42,6 +43,7 @@ export function createMemoryRepo(seed?: {
   const limits = new Map<string, { windowStart: Date; failures: number }>();
   const auditRows: AuditRow[] = [];
   const settings = new Map<string, string>([["renew_contact", ""]]);
+  const leads: LeadRecord[] = [];
   let auditSeq = 0;
 
   const windowOver = (start: Date, seconds: number, now: Date) =>
@@ -364,5 +366,38 @@ export function createMemoryRepo(seed?: {
     },
 
     async ping() {},
+
+    async createLead(l, now) {
+      const id = randomUUID();
+      leads.unshift({
+        ...l,
+        id,
+        createdAt: now,
+        status: "new",
+        emailSent: false,
+        clientId: null,
+      });
+      return id;
+    },
+    async markLeadEmailSent(id) {
+      const l = leads.find((x) => x.id === id);
+      if (l) l.emailSent = true;
+    },
+    async listLeads(limit) {
+      return leads.slice(0, limit).map((l) => ({ ...l }));
+    },
+    async getLead(id) {
+      const l = leads.find((x) => x.id === id);
+      return l ? { ...l } : null;
+    },
+    async setLeadStatus(id, status, clientId) {
+      const l = leads.find((x) => x.id === id);
+      if (!l) return;
+      l.status = status;
+      if (clientId !== undefined) l.clientId = clientId;
+    },
+    async countNewLeads() {
+      return leads.filter((l) => l.status === "new").length;
+    },
   };
 }

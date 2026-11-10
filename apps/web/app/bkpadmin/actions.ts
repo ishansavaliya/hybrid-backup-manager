@@ -17,6 +17,7 @@ import {
   updateClientDetails,
 } from "../../lib/server/admin-service";
 import { requireAdmin } from "../../lib/server/admin-session";
+import { changeLeadStatus, convertLead } from "../../lib/server/leads";
 import { serverEnv } from "../../lib/server/env";
 import { createSupabaseRepo } from "../../lib/server/repo-supabase";
 
@@ -97,8 +98,31 @@ export async function createClientFormAction(
   } catch (err) {
     return { error: message(err) };
   }
+  const leadId = text(formData, "leadId");
+  if (leadId) {
+    try {
+      await convertLead(createSupabaseRepo(serverEnv()), leadId, id);
+    } catch (err) {
+      message(err); // logged; the client itself was created
+    }
+  }
   revalidatePath("/bkpadmin", "layout");
   redirect(clientPath(id, { ok: "Client created" }));
+}
+
+/** Leads page: status dropdown saves immediately. */
+export async function leadStatusAction(
+  id: string,
+  status: string,
+): Promise<FormState> {
+  await requireAdmin();
+  try {
+    await changeLeadStatus(createSupabaseRepo(serverEnv()), id, status);
+  } catch (err) {
+    return { error: message(err) };
+  }
+  revalidatePath("/bkpadmin", "layout");
+  return { error: null };
 }
 
 export async function updateDetailsAction(formData: FormData): Promise<void> {

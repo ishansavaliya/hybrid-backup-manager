@@ -39,6 +39,7 @@ async function mock(
     plans?: unknown[];
     signInError?: { code: string; message: string };
     refreshError?: { code: string; message: string };
+    leadError?: { code: string; message: string };
   },
 ) {
   await page.addInitScript((o) => {
@@ -64,6 +65,10 @@ async function mock(
             ? { version: 1, error: o.signInError }
             : { version: 1, result: o.status };
         if (method === "signOut") return { version: 1, result: true };
+        if (method === "submitLead")
+          return o.leadError
+            ? { version: 1, error: o.leadError }
+            : { version: 1, result: { sent: true } };
         if (method === "overview")
           return {
             version: 1,
@@ -88,7 +93,7 @@ test("signed out with no plans shows code sign-in", async ({ page }) => {
   await page.getByRole("button", { name: "6-digit code" }).click();
   await expect(page.getByLabel(/^Digit \d$/)).toHaveCount(6);
   await expect(
-    page.getByText("No account? Contact your Bakvion provider."),
+    page.getByRole("button", { name: "Connect with Bakvion experts" }),
   ).toBeVisible();
   await page.getByLabel("Digit 1").focus();
   await page.evaluate(() => {
@@ -289,4 +294,55 @@ test("settings shows last sync and Sync now refreshes the licence", async ({
       ),
     )
     .toBe(true);
+});
+
+test("connect with Bakvion experts sends an enquiry", async ({ page }) => {
+  await mock(page, { status: signedOut });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Connect with Bakvion experts" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Your name").fill("Asha Mehta");
+  await dialog.getByLabel("Business name").fill("Mehta Traders");
+  await dialog.getByLabel("Phone (WhatsApp)").fill("+91 98765 43210");
+  await dialog.getByLabel("Number of PCs (optional)").fill("2");
+  await dialog.getByRole("button", { name: "Send" }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Thank you!" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("A Bakvion expert will contact you within 24 hours."),
+  ).toBeVisible();
+  const sent = (await calls(page)).find(
+    (c) => (c as { method: string }).method === "submitLead",
+  ) as { params: Record<string, unknown> };
+  expect(sent.params).toMatchObject({
+    name: "Asha Mehta",
+    business: "Mehta Traders",
+    phone: "+91 98765 43210",
+    pcs: 2,
+  });
+});
+
+test("expert enquiry offline keeps the form with an error", async ({
+  page,
+}) => {
+  await mock(page, {
+    status: signedOut,
+    leadError: { code: "OFFLINE", message: "server unreachable" },
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Connect with Bakvion experts" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Your name").fill("Asha");
+  await dialog.getByLabel("Business name").fill("Mehta Traders");
+  await dialog.getByLabel("Phone (WhatsApp)").fill("9876543210");
+  await dialog.getByRole("button", { name: "Send" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "No internet connection",
+  );
+  await expect(dialog.getByLabel("Business name")).toHaveValue("Mehta Traders");
 });

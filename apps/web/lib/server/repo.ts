@@ -61,6 +61,30 @@ export class UsernameTakenError extends Error {
 
 export type ClientInput = Omit<ClientRecord, "id" | "createdAt">;
 
+export type LeadStatus = "new" | "contacted" | "converted" | "not_interested";
+
+export interface LeadInput {
+  source: "website" | "app";
+  name: string;
+  business: string;
+  phone: string;
+  email: string;
+  city: string;
+  pcs: number | null;
+  message: string;
+  ip: string;
+  installId: string;
+  appVersion: string;
+}
+
+export interface LeadRecord extends LeadInput {
+  id: string;
+  createdAt: Date;
+  status: LeadStatus;
+  emailSent: boolean;
+  clientId: string | null;
+}
+
 export interface Repo {
   findLogin(
     username: string,
@@ -122,6 +146,16 @@ export interface Repo {
   pruneAudit(olderThan: Date): Promise<number>;
   pruneRateLimits(olderThan: Date): Promise<number>;
   ping(): Promise<void>;
+  createLead(l: LeadInput, now: Date): Promise<string>;
+  markLeadEmailSent(id: string): Promise<void>;
+  listLeads(limit: number): Promise<LeadRecord[]>;
+  getLead(id: string): Promise<LeadRecord | null>;
+  setLeadStatus(
+    id: string,
+    status: LeadStatus,
+    clientId?: string,
+  ): Promise<void>;
+  countNewLeads(): Promise<number>;
 }
 
 const LOGIN_NAME = /^[a-zA-Z0-9._-]{3,64}$/;

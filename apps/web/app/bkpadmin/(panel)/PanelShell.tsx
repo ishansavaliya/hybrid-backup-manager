@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { History, Menu, Settings, UsersRound, X } from "lucide-react";
+import { History, Inbox, Menu, Settings, UsersRound, X } from "lucide-react";
 import { BrandMark, ThemeToggle } from "../ui";
 
 const NAV = [
   { href: "/bkpadmin", label: "Clients", icon: UsersRound },
+  { href: "/bkpadmin/leads", label: "Leads", icon: Inbox },
   { href: "/bkpadmin/history", label: "History", icon: History },
   { href: "/bkpadmin/settings", label: "Settings", icon: Settings },
 ] as const;
@@ -31,10 +32,13 @@ function areaTitle(pathname: string): string {
  */
 export function PanelShell({
   adminName,
+  newLeads = 0,
   signOut,
   children,
 }: {
   adminName: string;
+  /** Unhandled enquiries, shown as a badge on Leads. */
+  newLeads?: number;
   signOut: ReactNode;
   children: ReactNode;
 }) {
@@ -99,6 +103,12 @@ export function PanelShell({
             >
               <span className="gx-nav__icon">
                 <Icon size={19} strokeWidth={2} aria-hidden="true" />
+                {href === "/bkpadmin/leads" && newLeads > 0 ? (
+                  <span className="gx-nav__badge">
+                    {newLeads > 99 ? "99+" : newLeads}
+                    <span className="gx-sr-only"> new</span>
+                  </span>
+                ) : null}
               </span>
               {label}
             </Link>

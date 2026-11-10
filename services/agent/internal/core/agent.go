@@ -217,7 +217,7 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		}
 	}
 	switch r.Method {
-	case "accountStatus", "signIn", "signOut", "refreshLicense":
+	case "accountStatus", "signIn", "signOut", "refreshLicense", "submitLead":
 		return a.handleAccount(ctx, r)
 	case "overview":
 		plans, err := a.Store.Plans()

@@ -191,3 +191,21 @@ func TestEmptySuccessBodyRejected(t *testing.T) {
 		t.Fatal("refresh without license accepted")
 	}
 }
+
+func TestSubmitLeadPostsWithoutToken(t *testing.T) {
+	var gotAuth, gotPath string
+	var body map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotPath = r.Header.Get("Authorization"), r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
+	if err := c.SubmitLead(context.Background(), LeadRequest{Name: "A", Business: "B", Phone: "9876543210", Source: "app"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/leads" || gotAuth != "" || body["business"] != "B" || body["source"] != "app" {
+		t.Fatalf("path=%s auth=%q body=%v", gotPath, gotAuth, body)
+	}
+}

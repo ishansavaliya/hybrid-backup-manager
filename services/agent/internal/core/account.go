@@ -18,6 +18,7 @@ type CloudAPI interface {
 	SignIn(context.Context, cloud.SignInRequest) (cloud.SignInResult, error)
 	RefreshLicense(context.Context, string, string) (string, error)
 	SignOut(context.Context, string) error
+	SubmitLead(context.Context, cloud.LeadRequest) error
 }
 
 // AccountStatus is the pipe view of the membership. It never contains tokens.
@@ -300,6 +301,15 @@ func (a *Agent) handleAccount(ctx context.Context, r Request) (any, error) {
 			return nil, err
 		}
 		return a.AccountStatus()
+	case "submitLead":
+		var p cloud.LeadRequest
+		if err := decode(r.Params, &p); err != nil {
+			return nil, errors.New("invalid enquiry")
+		}
+		if err := a.SubmitLead(ctx, p); err != nil {
+			return nil, err
+		}
+		return map[string]bool{"sent": true}, nil
 	}
 	return nil, errors.New("unsupported method")
 }
@@ -316,4 +326,26 @@ func errorCode(err error) string {
 		return CodeOffline
 	}
 	return CodeOperationFailed
+}
+
+// SubmitLead forwards a "Connect with Bakvion experts" enquiry. It works while
+// signed out; the service adds this PC's install ID and app version.
+func (a *Agent) SubmitLead(ctx context.Context, p cloud.LeadRequest) error {
+	if a.Cloud == nil {
+		return errNoCloud
+	}
+	row, err := a.Store.account()
+	if err != nil {
+		return err
+	}
+	p.Source = "app"
+	p.InstallID = row.InstallID
+	p.AppVersion = clip(a.AppVersion, 32)
+	p.Name = clip(p.Name, 120)
+	p.Business = clip(p.Business, 120)
+	p.Phone = clip(p.Phone, 40)
+	p.Email = clip(p.Email, 160)
+	p.City = clip(p.City, 80)
+	p.Message = clip(p.Message, 1000)
+	return a.Cloud.SubmitLead(ctx, p)
 }

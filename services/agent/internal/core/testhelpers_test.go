@@ -56,6 +56,8 @@ type fakeCloud struct {
 	clientID   string // "" means "client-1"
 	deviceID   string // "" means "device-1"
 	onRefresh  func()
+	leads      []cloud.LeadRequest
+	leadErr    error
 	signIns    []cloud.SignInRequest
 	refreshes  []string
 	signOuts   []string
@@ -146,4 +148,14 @@ func licensedAgent(t *testing.T, store *Store, engine Engine) *Agent {
 		t.Fatalf("licensed agent not full: %+v", st)
 	}
 	return a
+}
+
+func (f *fakeCloud) SubmitLead(_ context.Context, r cloud.LeadRequest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.leadErr != nil {
+		return f.leadErr
+	}
+	f.leads = append(f.leads, r)
+	return nil
 }

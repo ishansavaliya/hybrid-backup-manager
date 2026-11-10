@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const WEB_SPECS = /admin-.*\.spec\.ts$/;
+const WEB_SPECS = /(admin|site)-.*\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "./tests/e2e",

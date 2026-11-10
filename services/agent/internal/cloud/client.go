@@ -167,3 +167,25 @@ func decodeAPIError(status int, raw []byte) error {
 	}
 	return &APIError{Status: status, Code: body.Error.Code, Message: msg}
 }
+
+// LeadRequest is a "Connect with Bakvion experts" enquiry from the app.
+type LeadRequest struct {
+	Name       string `json:"name"`
+	Business   string `json:"business"`
+	Phone      string `json:"phone"`
+	Email      string `json:"email,omitempty"`
+	City       string `json:"city,omitempty"`
+	PCs        int    `json:"pcs,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Source     string `json:"source"`
+	InstallID  string `json:"installId,omitempty"`
+	AppVersion string `json:"appVersion,omitempty"`
+}
+
+// SubmitLead sends an enquiry; no account or token is needed.
+func (c *Client) SubmitLead(ctx context.Context, r LeadRequest) error {
+	var out struct {
+		OK bool `json:"ok"`
+	}
+	return c.post(ctx, "/api/v1/leads", "", r, &out)
+}

@@ -1,0 +1,120 @@
+{
+  "meta": {
+    "title": "Bakvion — Automatic, encrypted backups for Windows",
+    "description": "Bakvion backs up your business files every day to your own external disk or Google Drive. Set up in about 2 minutes."
+  },
+  "nav": {
+    "how": "How it works",
+    "features": "Features",
+    "faq": "FAQ",
+    "expert": "Talk to an expert",
+    "download": "Download",
+    "language": "Language"
+  },
+  "hero": {
+    "eyebrow": "Automatic backups for Windows",
+    "title1": "Your data.",
+    "title2": "Always protected.",
+    "lead": "Bakvion backs up your business files every day — to your own external disk or your Google Drive. Set it up once in about 2 minutes, then forget about it.",
+    "download": "Download for Windows",
+    "expert": "Talk to an expert",
+    "comingSoon": "Download coming soon",
+    "requirements": "Windows 10 & 11",
+    "version": "Version {version}",
+    "size": "{size}"
+  },
+  "illustration": {
+    "label": "Illustration of the Bakvion app",
+    "protected": "Protected",
+    "lastBackup": "Last backup 12 min ago",
+    "next": "Next: today 6:00 PM",
+    "plan1": "Accounts → External disk E:",
+    "plan2": "Office documents → Google Drive",
+    "plan3": "Photos → External disk E:",
+    "done": "Done"
+  },
+  "steps": {
+    "title": "Ready in about 2 minutes",
+    "subtitle": "No technical knowledge needed. Three steps and your files are safe.",
+    "s1Title": "Download & install",
+    "s1Text": "Download Bakvion and run the installer. It sets everything up for you.",
+    "s1Time": "30 sec",
+    "s2Title": "Sign in or connect",
+    "s2Text": "Sign in with the details you received, or tap “Connect with Bakvion experts” and we'll set you up.",
+    "s2Time": "15 sec",
+    "s3Title": "Choose what to protect",
+    "s3Text": "Pick your folders, pick your disk or Google Drive, and choose when to back up. Done.",
+    "s3Time": "1 min"
+  },
+  "features": {
+    "title": "Everything a small business needs",
+    "f1Title": "Automatic",
+    "f1Text": "Runs on your schedule in the background, even when the app is closed.",
+    "f2Title": "Encrypted",
+    "f2Text": "Every backup is locked with strong encryption before it is saved.",
+    "f3Title": "Easy restore",
+    "f3Text": "Get back any file or folder from any day, in a few clicks.",
+    "f4Title": "Email reports",
+    "f4Text": "Know after every backup whether it worked — or what to fix."
+  },
+  "where": {
+    "title": "Your backups stay with you",
+    "subtitle": "Bakvion saves your files only to places you own. We never see or store your data.",
+    "disk": "Your external disk / another drive",
+    "drive": "Your own Google Drive",
+    "ours": "Bakvion's servers",
+    "yes": "Yes",
+    "never": "Never"
+  },
+  "install": {
+    "title": "Installing: one quick note",
+    "subtitle": "Windows may show a blue “Windows protected your PC” screen the first time. This is normal for new software.",
+    "step1": "Click <b>More info</b>",
+    "step2": "Click <b>Run anyway</b>",
+    "step3": "Follow the installer — it takes under a minute",
+    "shotTitle": "Windows protected your PC",
+    "shotBody": "Microsoft Defender SmartScreen prevented an unrecognized app from starting.",
+    "moreInfo": "More info",
+    "runAnyway": "Run anyway"
+  },
+  "expert": {
+    "title": "Talk to a Bakvion expert",
+    "subtitle": "Tell us a little about your business. We'll call or WhatsApp you within 24 hours and set everything up.",
+    "name": "Your name",
+    "business": "Business name",
+    "phone": "Phone (WhatsApp)",
+    "email": "Email",
+    "city": "City",
+    "pcs": "Number of PCs",
+    "message": "Anything we should know?",
+    "optional": "optional",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanksTitle": "Thank you!",
+    "thanksBody": "A Bakvion expert will contact you within 24 hours.",
+    "errOffline": "No internet. Connect and try again.",
+    "errRate": "Too many requests. Please try again later.",
+    "errFields": "Please check the highlighted fields.",
+    "errGeneric": "Something went wrong. Please try again.",
+    "phonePlaceholder": "+91 98765 43210"
+  },
+  "faq": {
+    "title": "Questions",
+    "q1": "How do I get an account?",
+    "a1": "Fill in “Talk to a Bakvion expert” here or in the app. We create your account and send you your sign-in details on WhatsApp.",
+    "q2": "Does it work without internet?",
+    "a2": "Yes. Backups keep running offline. Bakvion syncs your membership whenever you're back online.",
+    "q3": "What happens if my membership ends?",
+    "a3": "New backups pause, but you can always restore everything you already backed up.",
+    "q4": "Which Windows versions are supported?",
+    "a4": "Windows 10 and Windows 11 (64-bit)."
+  },
+  "final": {
+    "title": "Protect your files today",
+    "subtitle": "Download Bakvion, open it, and you're a few clicks away from automatic backups."
+  },
+  "footer": {
+    "tagline": "Your Data. Always Protected.",
+    "rights": "© {year} Bakvion"
+  }
+}

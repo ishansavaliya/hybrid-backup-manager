@@ -1,6 +1,7 @@
 import { useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 import { Brand, Button, Card } from "@bakvion/ui";
 import type { SignInParams } from "@bakvion/shared-types";
+import { ExpertDialog } from "./ExpertDialog";
 
 export function SignIn({
   error,
@@ -16,6 +17,7 @@ export function SignIn({
   const [password, setPassword] = useState("");
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [busy, setBusy] = useState(false);
+  const [expert, setExpert] = useState(false);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const code = digits.join("");
   const ready =
@@ -127,11 +129,19 @@ export function SignIn({
               Back
             </Button>
           )}
-          <p className="muted" style={{ fontSize: 12 }}>
-            No account? Contact your Bakvion provider.
-          </p>
+          <div className="expert-cta">
+            <span className="muted">Don&apos;t have an account?</span>
+            <Button
+              type="button"
+              className="secondary"
+              onClick={() => setExpert(true)}
+            >
+              Connect with Bakvion experts
+            </Button>
+          </div>
         </form>
       </Card>
+      <ExpertDialog open={expert} onOpenChange={setExpert} />
     </div>
   );
 }

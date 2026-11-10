@@ -14,7 +14,8 @@ import {
   type ClientFilterKey,
   type ClientRow,
 } from "./ClientsTable";
-import { NewClientDialog } from "./NewClientDialog";
+import { NewClientDialog, type ClientPrefill } from "./NewClientDialog";
+import { isUuid } from "../../../lib/server/admin-service";
 
 export const dynamic = "force-dynamic";
 
@@ -37,17 +38,37 @@ function expiresHint(expiresAt: Date, now: Date): string {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; lead?: string }>;
 }) {
   await requireAdmin();
-  const { filter } = await searchParams;
+  const { filter, lead: leadParam } = await searchParams;
   const initialFilter: ClientFilterKey = FILTER_KEYS.includes(
     filter as ClientFilter,
   )
     ? (filter as ClientFilterKey)
     : "all";
   const now = new Date();
-  const list = await createSupabaseRepo(serverEnv()).listClients();
+  const repo = createSupabaseRepo(serverEnv());
+  const list = await repo.listClients();
+  let prefill: ClientPrefill | undefined;
+  if (leadParam && isUuid(leadParam)) {
+    const lead = await repo.getLead(leadParam).catch(() => null);
+    if (lead && !lead.clientId)
+      prefill = {
+        leadId: lead.id,
+        name: lead.business,
+        contactPerson: lead.name,
+        phone: lead.phone,
+        notes: [
+          lead.city && `City: ${lead.city}`,
+          lead.pcs && `PCs wanted: ${lead.pcs}`,
+          lead.email && `Email: ${lead.email}`,
+          lead.message,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+  }
   const membership = new Map(
     FILTER_KEYS.map((k) => [
       k,
@@ -80,7 +101,7 @@ export default async function ClientsPage({
         subtitle="Businesses using Bakvion, their membership and PCs."
         actions={
           <Suspense>
-            <NewClientDialog />
+            <NewClientDialog prefill={prefill} />
           </Suspense>
         }
       />
