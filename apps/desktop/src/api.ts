@@ -1,4 +1,12 @@
 import type { AgentResponse } from "@bakvion/shared-types";
+export class AgentRequestError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "AgentRequestError";
+    this.code = code;
+  }
+}
 export async function request<T>(method: string, params?: unknown): Promise<T> {
   if (!("__TAURI_INTERNALS__" in window))
     throw new Error(
@@ -8,7 +16,8 @@ export async function request<T>(method: string, params?: unknown): Promise<T> {
   const response = await invoke<AgentResponse<T>>("agent_request", {
     request: { version: 1, method, params },
   });
-  if (response.error) throw new Error(response.error.message);
+  if (response.error)
+    throw new AgentRequestError(response.error.code, response.error.message);
   if (response.result === undefined)
     throw new Error("Agent returned no result");
   return response.result;

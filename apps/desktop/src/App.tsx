@@ -29,6 +29,12 @@ import type {
 } from "@bakvion/shared-types";
 import { planSchema } from "@bakvion/validation";
 import { choose, request } from "./api";
+import { useAccount } from "./account/useAccount";
+import { SignIn } from "./account/SignIn";
+import { MembershipBadge } from "./account/MembershipBadge";
+import { SyncIndicator } from "./account/SyncIndicator";
+import { RestoreOnlyNotice } from "./account/RestoreOnlyNotice";
+import { AccountPanel } from "./account/AccountPanel";
 
 type Tab = "Overview" | "Backup plans" | "Recovery" | "Activity" | "Settings";
 const navigation = [
@@ -56,6 +62,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [wizard, setWizard] = useState(false);
+  const account = useAccount();
+  const [showSignIn, setShowSignIn] = useState(false);
   const [dark, setDark] = useState(
     localStorage.getItem("bakvion-theme") === "dark",
   );
@@ -102,6 +110,24 @@ export default function App() {
     (j) => j.state === "failed" || j.state === "interrupted",
   );
   const last = successful[0];
+  const acct = account.status;
+  const backupsPaused = !!acct && acct.mode !== "full";
+  if (
+    acct &&
+    acct.mode === "signed_out" &&
+    data &&
+    (!plans.length || showSignIn)
+  )
+    return (
+      <SignIn
+        error={account.error}
+        onSignIn={async (p) => {
+          await account.signIn(p);
+          setShowSignIn(false);
+        }}
+        onCancel={plans.length ? () => setShowSignIn(false) : undefined}
+      />
+    );
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -148,6 +174,8 @@ export default function App() {
             {tab}
           </span>
           <div className="top-actions">
+            {acct && <SyncIndicator status={acct} />}
+            {acct && <MembershipBadge status={acct} />}
             <Badge tone={data ? "success" : "warning"}>
               {data ? "Local service" : "Offline"}
             </Badge>
@@ -176,7 +204,10 @@ export default function App() {
               </p>
             </div>
             {(tab === "Overview" || tab === "Backup plans") && (
-              <Button onClick={() => setWizard(true)} disabled={!data || busy}>
+              <Button
+                onClick={() => setWizard(true)}
+                disabled={!data || busy || backupsPaused}
+              >
                 <Plus size={16} />
                 Create backup plan
               </Button>
@@ -186,6 +217,14 @@ export default function App() {
             <div className="error" role="alert">
               {error || connectionError}
             </div>
+          )}
+          {acct && backupsPaused && (
+            <RestoreOnlyNotice
+              status={acct}
+              busy={busy}
+              onSync={() => void account.syncNow()}
+              onSignIn={() => setShowSignIn(true)}
+            />
           )}
           {message && (
             <div className="notice" role="status">
@@ -359,7 +398,9 @@ export default function App() {
                           <h2>{p.name}</h2>
                           <Button
                             disabled={
-                              busy || active.some((j) => j.planId === p.id)
+                              busy ||
+                              backupsPaused ||
+                              active.some((j) => j.planId === p.id)
                             }
                             onClick={() =>
                               void act(async () => {
@@ -494,6 +535,14 @@ export default function App() {
               )}
               {tab === "Settings" && (
                 <div className="grid-two">
+                  {acct && (
+                    <AccountPanel
+                      status={acct}
+                      error={account.error}
+                      onSync={account.syncNow}
+                      onSignOut={account.signOut}
+                    />
+                  )}
                   <Card>
                     <h2>Security and recovery keys</h2>
                     <p>

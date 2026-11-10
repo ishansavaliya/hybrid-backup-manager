@@ -61,3 +61,24 @@ export interface AgentResponse<T> {
   result?: T;
   error?: AgentError;
 }
+export type AccountMode = "full" | "restore_only" | "signed_out";
+export type AccountReason =
+  "" | "expired" | "blocked" | "clock" | "pc_limit" | "signed_out";
+export interface AccountStatus {
+  signedIn: boolean;
+  mode: AccountMode;
+  reason: AccountReason;
+  clientName: string;
+  expiresAt: string | null;
+  daysLeft: number;
+  showBadge: boolean;
+  renewContact: string;
+  lastSyncAt: string | null;
+  daysSinceSync: number;
+  syncWarning: boolean;
+  installId: string;
+  appVersion: string;
+}
+export type SignInParams =
+  | { method: "password"; username: string; password: string }
+  | { method: "code"; code: string };

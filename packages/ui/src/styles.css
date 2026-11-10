@@ -576,3 +576,22 @@ input.search {
     gap: 15px;
   }
 }
+.code-boxes {
+  gap: 8px;
+}
+.code-box {
+  width: 44px;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+.badge-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
