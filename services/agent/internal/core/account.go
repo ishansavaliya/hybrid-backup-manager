@@ -54,6 +54,7 @@ var gatedMethods = map[string]bool{"savePlan": true, "startBackup": true, "initR
 var (
 	errNoCloud        = errors.New("account server is not configured")
 	errInvalidLicense = errors.New("the server returned a license this app cannot verify")
+	errStaleLicense   = errors.New("the server returned an older or mismatched license; the current one is kept")
 )
 
 func (a *Agent) clock() time.Time {
@@ -83,12 +84,14 @@ func clip(s string, n int) string {
 	return s
 }
 
-// syncHighWater is the clock mark after a verified sync: the server's issue time or
-// the local time, whichever is later. A sync replaces the old mark, so a PC whose
-// clock was once ahead recovers from the "clock" state on its next successful sync.
+// syncHighWater is the clock mark after a verified sync: the local time, or the
+// server's issue time minus license.ServerSkewTolerance if that is later. A PC clock
+// up to 24 h behind the server therefore stays full; one further behind evaluates as
+// "clock". A sync replaces the old mark, so a PC whose clock was once ahead recovers
+// from the "clock" state on its next successful sync.
 func syncHighWater(p license.Payload, now time.Time) time.Time {
-	if p.IssuedAt.After(now) {
-		return p.IssuedAt.UTC()
+	if floor := p.IssuedAt.Add(-license.ServerSkewTolerance); floor.After(now) {
+		return floor.UTC()
 	}
 	return now
 }
@@ -237,6 +240,12 @@ func (a *Agent) Refresh(ctx context.Context) error {
 	p, err := license.Verify(token, a.LicenseKey)
 	if err != nil {
 		return errInvalidLicense
+	}
+	// A replayed older license, or one for another client or device, must not
+	// replace the stored one (it could lower the high-water mark).
+	if cur := a.verifiedPayload(row); cur != nil &&
+		(p.IssuedAt.Before(cur.IssuedAt) || p.ClientID != cur.ClientID || p.DeviceID != cur.DeviceID) {
+		return errStaleLicense
 	}
 	now := a.clock()
 	return a.Store.saveLicense(row.DeviceToken, token, now, syncHighWater(p, now))

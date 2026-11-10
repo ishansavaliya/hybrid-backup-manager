@@ -53,6 +53,8 @@ type fakeCloud struct {
 	refreshErr error
 	signOutErr error
 	badLicense string
+	clientID   string // "" means "client-1"
+	deviceID   string // "" means "device-1"
 	onRefresh  func()
 	signIns    []cloud.SignInRequest
 	refreshes  []string
@@ -71,8 +73,15 @@ func (f *fakeCloud) license() string {
 	if f.badLicense != "" {
 		return f.badLicense
 	}
+	clientID, deviceID := f.clientID, f.deviceID
+	if clientID == "" {
+		clientID = "client-1"
+	}
+	if deviceID == "" {
+		deviceID = "device-1"
+	}
 	return signTestLicense(f.priv, license.Payload{
-		V: 1, ClientID: "client-1", ClientName: "Acme Traders", DeviceID: "device-1",
+		V: 1, ClientID: clientID, ClientName: "Acme Traders", DeviceID: deviceID,
 		Status: f.status, Mode: f.mode, ExpiresAt: f.expiresAt, IssuedAt: f.now(),
 		RenewContact: "support@example.com",
 	})

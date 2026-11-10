@@ -346,13 +346,77 @@ func TestClockRollbackRestoreOnlyUntilSuccessfulSync(t *testing.T) {
 	}
 }
 
-func TestServerClockAheadStaysRestoreOnlyAfterRefresh(t *testing.T) {
+func TestServerClockAheadWithinToleranceIsFullAfterRefresh(t *testing.T) {
 	e := newAccountEnv(t)
 	e.signIn(t)
 	e.fake.now = func() time.Time { return e.clock.Now().Add(time.Hour) }
 	st := decodeStatus(t, e.call(t, "refreshLicense", nil))
-	if st.Mode != license.ModeRestoreOnly || st.Reason != "clock" {
+	if st.Mode != license.ModeFull || st.Reason != "" {
 		t.Fatalf("server 1 h ahead: %+v", st)
+	}
+	// The mark stays at local time, so normal use afterwards is not "clock".
+	e.clock.Add(time.Minute)
+	if st = e.status(t); st.Mode != license.ModeFull {
+		t.Fatalf("after 1 min: %+v", st)
+	}
+}
+
+func TestServerClockAheadBeyondToleranceIsClockAfterRefresh(t *testing.T) {
+	e := newAccountEnv(t)
+	e.signIn(t)
+	e.fake.now = func() time.Time { return e.clock.Now().Add(25 * time.Hour) }
+	st := decodeStatus(t, e.call(t, "refreshLicense", nil))
+	if st.Mode != license.ModeRestoreOnly || st.Reason != "clock" {
+		t.Fatalf("server 25 h ahead: %+v", st)
+	}
+	expectCode(t, e.call(t, "savePlan", e.plan(t)), "MEMBERSHIP_INACTIVE")
+	// Correcting the PC clock restores full mode.
+	e.clock.Add(25 * time.Hour)
+	if st = e.status(t); st.Mode != license.ModeFull {
+		t.Fatalf("after clock fix: %+v", st)
+	}
+}
+
+func TestRefreshRejectsOlderOrMismatchedLicense(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(f *fakeCloud)
+	}{
+		// Signed in at t0, so a license issued before t0 is a replay.
+		{"older issuedAt", func(f *fakeCloud) { f.now = func() time.Time { return t0.Add(-time.Hour) } }},
+		{"other client", func(f *fakeCloud) { f.clientID = "client-2" }},
+		{"other device", func(f *fakeCloud) { f.deviceID = "device-2" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newAccountEnv(t)
+			e.signIn(t)
+			e.clock.Add(2 * day)
+			e.status(t)
+			device, oldLic := accountRowTokens(t, e.store)
+			var hwBefore string
+			if err := e.store.DB.QueryRow(`SELECT high_water FROM account WHERE id=1`).Scan(&hwBefore); err != nil {
+				t.Fatal(err)
+			}
+			e.fake.expiresAt = t0.Add(900 * day)
+			tc.setup(e.fake)
+			expectCode(t, e.call(t, "refreshLicense", nil), CodeOperationFailed)
+			gotDevice, lic := accountRowTokens(t, e.store)
+			if gotDevice != device || lic != oldLic {
+				t.Fatal("rejected license replaced the stored session")
+			}
+			var hwAfter string
+			if err := e.store.DB.QueryRow(`SELECT high_water FROM account WHERE id=1`).Scan(&hwAfter); err != nil {
+				t.Fatal(err)
+			}
+			if hwAfter != hwBefore {
+				t.Fatalf("high water changed %q -> %q", hwBefore, hwAfter)
+			}
+			st := e.status(t)
+			if !st.SignedIn || st.Mode != license.ModeFull || st.ExpiresAt == nil || !st.ExpiresAt.Equal(t0.Add(365*day)) {
+				t.Fatalf("status %+v", st)
+			}
+		})
 	}
 }
 

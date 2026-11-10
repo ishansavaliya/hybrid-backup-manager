@@ -5,7 +5,8 @@ import type { AccountStatus } from "@bakvion/shared-types";
 const reasons: Record<string, string> = {
   expired: "Your membership has expired.",
   blocked: "Your account is paused.",
-  clock: "Your PC clock looks wrong. Connect to the internet to verify.",
+  clock:
+    "Your PC's date and time look wrong. Correct them in Windows Settings, then click Sync now.",
   pc_limit:
     "This PC is not active because your plan's PC limit is reached. Remove another PC or contact your Bakvion provider.",
   signed_out: "You are signed out.",

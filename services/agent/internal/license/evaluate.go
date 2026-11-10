@@ -16,6 +16,12 @@ const (
 	BadgeDays = 10
 	// ClockSkew is the tolerated backwards clock movement vs the high-water mark.
 	ClockSkew = 5 * time.Minute
+	// ServerSkewTolerance is how far the PC clock may run behind the server's
+	// issuedAt at a successful sync and still count as correct. After a sync the
+	// high-water mark is max(now, issuedAt - ServerSkewTolerance), so a clock up to
+	// 24 h slow keeps full mode (at most 24 h of extra membership) while a clock
+	// further behind is restore-only with reason "clock" until it is corrected.
+	ServerSkewTolerance = 24 * time.Hour
 )
 
 // State is the evaluated license state. Reason is one of "", "expired",
