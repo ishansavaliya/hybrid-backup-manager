@@ -191,6 +191,21 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
       if (error) fail("revokeToken", error);
     },
 
+    async signOutDevice(deviceId, now) {
+      // Mode first: the PC slot is freed even if revoking the tokens fails.
+      const { error } = await db
+        .from("devices")
+        .update({ mode: "restore_only" })
+        .eq("id", deviceId);
+      if (error) fail("signOutDevice", error);
+      const { error: tokError } = await db
+        .from("device_tokens")
+        .update({ revoked_at: iso(now) })
+        .eq("device_id", deviceId)
+        .is("revoked_at", null);
+      if (tokError) fail("signOutDevice", tokError);
+    },
+
     async rateLimited(key, max, windowSeconds, now) {
       const { data, error } = await db.rpc("bkp_rate_limited", {
         p_key: key,

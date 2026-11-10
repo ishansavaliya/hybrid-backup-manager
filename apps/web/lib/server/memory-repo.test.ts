@@ -231,6 +231,34 @@ describe("devices and tokens", () => {
     expect(await repo.deviceByToken("tb")).toBeNull();
   });
 
+  it("re-registering a PC revokes its older tokens only", async () => {
+    const repo = setup({ pcLimit: 2 });
+    await repo.registerDevice("c1", dev("a"), "ta1", NOW);
+    await repo.registerDevice("c1", dev("b"), "tb1", NOW);
+    await repo.registerDevice("c1", dev("a"), "ta2", NOW);
+    expect(await repo.deviceByToken("ta1")).toBeNull();
+    expect((await repo.deviceByToken("ta2"))?.device.installId).toBe("a");
+    expect((await repo.deviceByToken("tb1"))?.device.installId).toBe("b");
+  });
+
+  it("signOutDevice frees the slot and revokes every token of that PC", async () => {
+    const repo = setup({ pcLimit: 1 });
+    const a = await repo.registerDevice("c1", dev("a"), "ta1", NOW);
+    if (a.outcome !== "ok") throw new Error("expected ok");
+    await repo.registerDevice("c1", dev("a"), "ta2", NOW);
+    await repo.signOutDevice(a.deviceId, NOW);
+    expect(await repo.deviceByToken("ta1")).toBeNull();
+    expect(await repo.deviceByToken("ta2")).toBeNull();
+    expect(repo.devices[0]).toMatchObject({
+      mode: "restore_only",
+      removedAt: null,
+    });
+    expect((await repo.listClients())[0].pcsUsed).toBe(0);
+    expect((await repo.registerDevice("c1", dev("b"), "tb", NOW)).outcome).toBe(
+      "ok",
+    );
+  });
+
   it("touchDevice updates version and last seen", async () => {
     const repo = setup();
     const a = await repo.registerDevice("c1", dev("a"), "ta", NOW);

@@ -147,6 +147,37 @@ try {
   });
 
   await check(
+    "register: re-registering a PC revokes its older tokens",
+    async () => {
+      const c = await newClient({ pcLimit: 2 });
+      const first = await register(c, "ra", "tok-ra-1");
+      const other = await register(c, "rb", "tok-rb-1");
+      const again = await register(c, "ra", "tok-ra-2");
+      assert.equal(again.outcome, "ok");
+      assert.equal(again.device_id, first.device_id);
+      const { rows } = await db.query(
+        `select token_hash, revoked_at from device_tokens where device_id = any($1::uuid[]) order by token_hash`,
+        [[first.device_id, other.device_id]],
+      );
+      const revoked = Object.fromEntries(
+        rows.map((r) => [r.token_hash, r.revoked_at !== null]),
+      );
+      assert.deepEqual(revoked, {
+        "tok-ra-1": true,
+        "tok-ra-2": false,
+        "tok-rb-1": false,
+      });
+      const { rows: when } = await db.query(
+        `select revoked_at from device_tokens where token_hash = 'tok-ra-1'`,
+      );
+      assert.equal(
+        new Date(when[0].revoked_at).toISOString(),
+        new Date(NOW).toISOString(),
+      );
+    },
+  );
+
+  await check(
     "register: expired client gets restore_only and does not use a slot",
     async () => {
       const c = await newClient({

@@ -115,13 +115,27 @@ describe("password sign-in", () => {
     expect(r.body).toMatchObject({ error: { code: "rate_limited" } });
   });
 
-  it("returns 409 pc_limit mentioning the limit", async () => {
+  it("returns 409 pc_limit with the plan's PC count", async () => {
     await signIn(repo, env, pw(), ctx);
     const r = await signIn(repo, env, pw("pw-123456", "acme", device(2)), ctx);
     expect(r.status).toBe(409);
-    const body = r.body as { error: { code: string; message: string } };
-    expect(body.error.code).toBe("pc_limit");
-    expect(body.error.message).toContain("1");
+    expect(r.body).toEqual({
+      error: {
+        code: "pc_limit",
+        message: "Your plan allows 1 PC. Contact your Bakvion provider.",
+      },
+    });
+    await setup({ pcLimit: 3 });
+    for (const n of [1, 2, 3]) {
+      await signIn(repo, env, pw("pw-123456", "acme", device(n)), ctx);
+    }
+    const r3 = await signIn(repo, env, pw("pw-123456", "acme", device(4)), ctx);
+    expect(r3.body).toEqual({
+      error: {
+        code: "pc_limit",
+        message: "Your plan allows 3 PCs. Contact your Bakvion provider.",
+      },
+    });
   });
 
   it("expired client gets restore_only; blocked client license is blocked", async () => {
@@ -203,6 +217,22 @@ describe("license refresh and sign-out", () => {
     const r = await refreshLicense(repo, env, t, { appVersion: "1" }, ctx);
     expect(r.status).toBe(401);
     expect(r.body).toMatchObject({ error: { code: "device_removed" } });
+  });
+
+  it("sign-out frees the PC slot for another PC", async () => {
+    const a = await token();
+    expect(await signOut(repo, a, ctx)).toEqual({
+      status: 200,
+      body: { ok: true },
+    });
+    expect(repo.devices[0].mode).toBe("restore_only");
+    const b = await signIn(repo, env, pw("pw-123456", "acme", device(2)), ctx);
+    expect(b.status).toBe(200);
+    expect((b.body as Ok).mode).toBe("full");
+    expect((await repo.listClients())[0].pcsUsed).toBe(1);
+    const old = await refreshLicense(repo, env, a, { appVersion: "1" }, ctx);
+    expect(old.status).toBe(401);
+    expect(old.body).toMatchObject({ error: { code: "device_removed" } });
   });
 
   it("sign-out revokes the token", async () => {

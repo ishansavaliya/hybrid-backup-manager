@@ -99,6 +99,10 @@ export function createMemoryRepo(seed?: {
       };
       devices.push(device);
     }
+    // Re-registering the same PC replaces its session: older tokens stop working.
+    for (const t of tokens) {
+      if (t.deviceId === device.id && !t.revokedAt) t.revokedAt = now;
+    }
     tokens.push({ deviceId: device.id, tokenHash, revokedAt: null });
     return { outcome: "ok", clientId, deviceId: device.id, mode };
   }
@@ -191,6 +195,14 @@ export function createMemoryRepo(seed?: {
     async revokeToken(tokenHash, now) {
       for (const t of tokens) {
         if (t.tokenHash === tokenHash && !t.revokedAt) t.revokedAt = now;
+      }
+    },
+
+    async signOutDevice(deviceId, now) {
+      const device = devices.find((x) => x.id === deviceId);
+      if (device) device.mode = "restore_only";
+      for (const t of tokens) {
+        if (t.deviceId === deviceId && !t.revokedAt) t.revokedAt = now;
       }
     },
 

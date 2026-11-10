@@ -150,6 +150,12 @@ begin
         app_version = excluded.app_version
   returning dv.id into v_device_id;
 
+  -- Re-registering the same PC replaces its session: older tokens stop working.
+  update public.device_tokens t
+    set revoked_at = p_now
+    where t.device_id = v_device_id
+      and t.revoked_at is null;
+
   insert into public.device_tokens (device_id, token_hash, created_at)
   values (v_device_id, p_token_hash, p_now);
 

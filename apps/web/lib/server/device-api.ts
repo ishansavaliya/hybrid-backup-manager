@@ -186,12 +186,14 @@ async function signInPassword(
   return result;
 }
 
+/** Spec §7.3 wording; the desktop shows this text as-is. */
+export function pcLimitMessage(limit: number): string {
+  const pcs = limit === 1 ? "1 PC" : `${limit} PCs`;
+  return `Your plan allows ${pcs}. Contact your Bakvion provider.`;
+}
+
 function pcLimit(limit: number): ApiResult {
-  return fail(
-    409,
-    "pc_limit",
-    `PC limit reached (${limit}). Remove a PC from your account or contact support.`,
-  );
+  return fail(409, "pc_limit", pcLimitMessage(limit));
 }
 
 async function signInCode(
@@ -319,7 +321,8 @@ export async function signOut(
   const tokenHash = hashToken(bearer);
   const found = await repo.deviceByToken(tokenHash);
   if (!found) return deviceRemoved();
-  await repo.revokeToken(tokenHash, ctx.now);
+  // Frees this PC's slot and ends every session it holds.
+  await repo.signOutDevice(found.device.id, ctx.now);
   await repo.audit({
     actor: "device",
     action: "sign_out",

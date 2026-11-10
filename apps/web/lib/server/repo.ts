@@ -89,6 +89,8 @@ export interface Repo {
   ): Promise<"full" | "restore_only" | "removed">;
   touchDevice(deviceId: string, appVersion: string, now: Date): Promise<void>;
   revokeToken(tokenHash: string, now: Date): Promise<void>;
+  /** Device sign-out: mode becomes restore_only (frees its PC slot) and all its tokens are revoked. */
+  signOutDevice(deviceId: string, now: Date): Promise<void>;
   rateLimited(
     key: string,
     max: number,
