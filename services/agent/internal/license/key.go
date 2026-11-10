@@ -8,7 +8,7 @@ import (
 
 // PublicKeyBase64 is the raw 32-byte Ed25519 license public key, standard
 // base64. Overridable at build time with -ldflags "-X .../license.PublicKeyBase64=...".
-var PublicKeyBase64 = ""
+var PublicKeyBase64 = "mzFM3o7JtiCsRWwi1IiNDVDCpXk74TRRhru/GLuWQAs="
 
 // DefaultPublicKey decodes PublicKeyBase64; it errors when empty or not 32 bytes.
 func DefaultPublicKey() (ed25519.PublicKey, error) {
