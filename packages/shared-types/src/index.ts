@@ -30,6 +30,8 @@ export interface Plan {
   destinations: Destination[];
   schedule: Schedule;
   retention: Retention;
+  /** Opened from another PC: restore only, never backed up to. */
+  restoreOnly?: boolean;
 }
 export interface Execution {
   id: string;

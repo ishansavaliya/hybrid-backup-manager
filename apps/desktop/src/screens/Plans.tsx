@@ -89,52 +89,61 @@ export function Plans({
             (j.state === "running" || j.state === "queued"),
         );
         const next = data.nextRuns?.[plan.id];
+        const ro = !!plan.restoreOnly;
         return (
           <Card key={plan.id} className="gx-plan">
             <CardHeader
               title={plan.name}
               description={
-                <>
-                  {scheduleLabel(t, weekdays, plan.schedule)}
-                  {next ? (
-                    <span title={dateTime(next)}>
-                      {" · "}
-                      {format(p.next, { when: relative(next) })}
-                    </span>
-                  ) : null}
-                  <br />
-                  {cleanupLabel(t, plan.retention)}
-                </>
+                ro ? (
+                  p.restoreOnlyHint
+                ) : (
+                  <>
+                    {scheduleLabel(t, weekdays, plan.schedule)}
+                    {next ? (
+                      <span title={dateTime(next)}>
+                        {" · "}
+                        {format(p.next, { when: relative(next) })}
+                      </span>
+                    ) : null}
+                    <br />
+                    {cleanupLabel(t, plan.retention)}
+                  </>
+                )
               }
               actions={
-                <>
-                  <Button
-                    variant="secondary"
-                    disabled={busy || paused}
-                    onClick={() =>
-                      setEditing({
-                        plan,
-                        schedule: plan.schedule ?? { kind: "manual" },
-                        retention: plan.retention ?? defaultRetention,
-                      })
-                    }
-                  >
-                    <CalendarClock size={15} aria-hidden="true" />
-                    {p.edit}
-                  </Button>
-                  <Button
-                    disabled={busy || paused || running}
-                    onClick={() =>
-                      void act(async () => {
-                        await request("startBackup", { planId: plan.id });
-                        notify(p.queued);
-                      })
-                    }
-                  >
-                    <Play size={15} aria-hidden="true" />
-                    {p.run}
-                  </Button>
-                </>
+                ro ? (
+                  <Badge tone="warning">{p.restoreOnly}</Badge>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      disabled={busy || paused}
+                      onClick={() =>
+                        setEditing({
+                          plan,
+                          schedule: plan.schedule ?? { kind: "manual" },
+                          retention: plan.retention ?? defaultRetention,
+                        })
+                      }
+                    >
+                      <CalendarClock size={15} aria-hidden="true" />
+                      {p.edit}
+                    </Button>
+                    <Button
+                      disabled={busy || paused || running}
+                      onClick={() =>
+                        void act(async () => {
+                          await request("startBackup", { planId: plan.id });
+                          notify(p.queued);
+                        })
+                      }
+                    >
+                      <Play size={15} aria-hidden="true" />
+                      {p.run}
+                    </Button>
+                  </>
+                )
               }
             />
             <p className="gx-section-label">{p.folders}</p>
@@ -201,15 +210,17 @@ export function Plans({
                       >
                         {p.test}
                       </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={busy || paused}
-                        onClick={() => setInitFor(params)}
-                      >
-                        {p.init}
-                      </Button>
-                      {d.passwordFile ? null : (
+                      {ro ? null : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy || paused}
+                          onClick={() => setInitFor(params)}
+                        >
+                          {p.init}
+                        </Button>
+                      )}
+                      {d.passwordFile || ro ? null : (
                         <Button
                           variant="ghost"
                           size="sm"

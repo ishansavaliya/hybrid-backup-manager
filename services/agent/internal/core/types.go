@@ -49,6 +49,9 @@ type Plan struct {
 	Destinations []Destination `json:"destinations"`
 	Schedule     Schedule      `json:"schedule"`
 	Retention    Retention     `json:"retention"`
+	// RestoreOnly marks a backup opened from another PC (no source folders
+	// here): it can be browsed and restored, never backed up to.
+	RestoreOnly bool `json:"restoreOnly,omitempty"`
 }
 type Execution struct {
 	ID            string  `json:"id"`

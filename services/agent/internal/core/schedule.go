@@ -96,7 +96,7 @@ func (a *Agent) SchedulerTick() (queued []string, err error) {
 	}
 	nowT := a.now()
 	for _, p := range plans {
-		if p.Schedule.Kind == "" || p.Schedule.Kind == "manual" {
+		if p.RestoreOnly || p.Schedule.Kind == "" || p.Schedule.Kind == "manual" {
 			continue
 		}
 		last, ok, err := a.scheduleState(p.ID)

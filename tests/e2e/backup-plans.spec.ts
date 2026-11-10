@@ -76,6 +76,27 @@ async function mock(
                 kit: o.kit ?? { needed: false, savedAt: null },
               },
             };
+          if (method === "openExistingBackup")
+            return {
+              version: 1,
+              result: {
+                id: "old1",
+                name: (params as { name: string }).name,
+                sources: [],
+                exclusions: [],
+                destinations: [
+                  {
+                    id: "backup",
+                    name: (params as { name: string }).name,
+                    repository: (params as { repository: string }).repository,
+                    passwordFile: "",
+                  },
+                ],
+                schedule: { kind: "manual" },
+                retention: { enabled: false, daily: 7, weekly: 4, monthly: 12 },
+                restoreOnly: true,
+              },
+            };
           if (method === "findGoogleDrive")
             return { version: 1, result: { folders: o.drive ?? [] } };
           if (method === "reportSettings")
@@ -399,4 +420,68 @@ test("history shows run notes in plain words", async ({ page }) => {
   await expect(
     page.getByText("Disk 95% full (1.0 GB free)", { exact: false }),
   ).toBeVisible();
+});
+
+test("a new PC opens a backup from another PC with the kit key", async ({
+  page,
+}) => {
+  await mock(page, {});
+  await page.goto("/");
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open a backup from another PC" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Name")).toHaveValue("Old PC backup");
+  await expect(
+    dialog.getByRole("button", { name: "Open backup" }),
+  ).toBeDisabled();
+  await dialog.getByRole("button", { name: "Choose folder" }).click();
+  await expect(dialog.getByText("D:\\Safe")).toBeVisible();
+  await dialog
+    .getByLabel("Key from the recovery kit", { exact: true })
+    .fill("kit-key-0123456789");
+  await dialog.getByRole("button", { name: "Open backup" }).click();
+  await expect
+    .poll(() => sent(page, "openExistingBackup"))
+    .toEqual({
+      name: "Old PC backup",
+      repository: "D:\\Safe",
+      key: "kit-key-0123456789",
+    });
+  await expect(
+    page.getByText("Backup opened. Choose it above to restore files."),
+  ).toBeVisible();
+});
+
+test("restore-only plans cannot be backed up or edited", async ({ page }) => {
+  await mock(page, {
+    plans: [
+      plan,
+      {
+        ...plan,
+        id: "old1",
+        name: "Old PC backup",
+        sources: [],
+        restoreOnly: true,
+        destinations: [{ ...plan.destinations[0], id: "backup" }],
+      },
+    ],
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Backup plans", exact: true }).click();
+  const old = page.locator(".gx-plan").filter({ hasText: "Old PC backup" });
+  await expect(old.getByText("Restore only", { exact: true })).toBeVisible();
+  await expect(
+    old.getByText("Opened from another PC.", { exact: false }),
+  ).toBeVisible();
+  await expect(old.getByRole("button", { name: "Run backup" })).toHaveCount(0);
+  await expect(
+    old.getByRole("button", { name: "Schedule & cleanup" }),
+  ).toHaveCount(0);
+  await expect(old.getByRole("button", { name: "Set up" })).toHaveCount(0);
+  await expect(old.getByRole("button", { name: "Verify" })).toBeVisible();
+  // Overview counts only this PC's own plan.
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await expect(page.locator(".gx-tile").first()).toContainText("1");
 });

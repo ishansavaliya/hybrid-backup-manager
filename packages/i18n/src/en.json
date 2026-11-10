@@ -229,7 +229,9 @@
       "connectBody": "Use this on a new PC. Enter this destination's key from your recovery kit.",
       "connectKey": "Key from the recovery kit",
       "connectOk": "Backup connected. You can restore from it now.",
-      "diskFull": "{n}% full"
+      "diskFull": "{n}% full",
+      "restoreOnly": "Restore only",
+      "restoreOnlyHint": "Opened from another PC. You can restore from it; to back up this PC, create a new plan."
     },
     "wizard": {
       "title": "Create a backup plan",
@@ -310,7 +312,16 @@
       "confirmBody": "{what} will be restored into: {target}",
       "everything": "The whole backup",
       "confirm": "Restore",
-      "done": "Restore finished: {n} files checked and saved to {target}"
+      "done": "Restore finished: {n} files checked and saved to {target}",
+      "openOther": "Open a backup from another PC",
+      "openBody": "Use this on a new PC. Choose the backup folder (on the external disk or in Google Drive) and enter the key from your recovery kit.",
+      "openName": "Name",
+      "openNameDefault": "Old PC backup",
+      "openFolder": "Backup folder",
+      "openChoose": "Choose folder",
+      "openKey": "Key from the recovery kit",
+      "openSubmit": "Open backup",
+      "openOk": "Backup opened. Choose it above to restore files."
     },
     "history": {
       "title": "History",

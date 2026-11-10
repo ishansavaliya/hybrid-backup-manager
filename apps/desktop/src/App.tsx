@@ -228,7 +228,7 @@ function Main({
                         .map((j) => j.planId),
                     );
                     for (const p of plans)
-                      if (!running.has(p.id))
+                      if (!running.has(p.id) && !p.restoreOnly)
                         await request("startBackup", { planId: p.id });
                     setMessage(t.overview.queuedAll);
                   })

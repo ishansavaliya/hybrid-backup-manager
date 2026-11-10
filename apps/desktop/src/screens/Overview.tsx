@@ -53,7 +53,8 @@ export function Overview({
 }) {
   const { t, relative, dateTime, weekdays } = useI18n();
   const o = t.overview;
-  const plans = data.plans;
+  // Backups opened from another PC are for restoring; they are not protection of this PC.
+  const plans = data.plans.filter((p) => !p.restoreOnly);
   const jobs = data.executions;
   const pairs = latestRuns(plans, jobs);
   const done = pairs.filter((j) => j?.state === "succeeded").length;

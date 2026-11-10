@@ -78,6 +78,9 @@ func (a *Agent) Enqueue(id string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if p.RestoreOnly {
+		return nil, ErrRestoreOnlyPlan
+	}
 	if err = a.Validate(p); err != nil {
 		return nil, err
 	}
@@ -279,6 +282,16 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		return a.handleAccount(ctx, r)
 	case "reportSettings", "setReportSettings", "sendTestReport":
 		return a.handleReports(ctx, r)
+	case "openExistingBackup":
+		var p struct {
+			Name       string `json:"name"`
+			Repository string `json:"repository"`
+			Key        string `json:"key"`
+		}
+		if err := decode(r.Params, &p); err != nil {
+			return nil, err
+		}
+		return a.OpenExistingBackup(ctx, p.Name, p.Repository, p.Key)
 	case "findGoogleDrive":
 		return map[string]any{"folders": FindGoogleDrive()}, nil
 	case "overview":
@@ -311,6 +324,10 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 		var p Plan
 		if err := decode(r.Params, &p); err != nil {
 			return nil, err
+		}
+		// Restore-only plans come only from openExistingBackup and stay that way.
+		if old, err := a.Store.Plan(p.ID); p.RestoreOnly || (err == nil && old.RestoreOnly) {
+			return nil, ErrRestoreOnlyPlan
 		}
 		if err := a.Validate(p); err != nil {
 			return nil, err

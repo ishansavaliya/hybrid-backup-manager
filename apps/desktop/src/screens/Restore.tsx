@@ -2,6 +2,8 @@ import { useState } from "react";
 import {
   ArrowDownToLine,
   CalendarDays,
+  FolderOpen,
+  FolderSearch,
   Search,
   ShieldCheck,
 } from "lucide-react";
@@ -9,7 +11,15 @@ import type { Plan, Snapshot, SnapshotNode } from "@bakvion/shared-types";
 import { GxDialog, GxSelect } from "@bakvion/ui/gx";
 import { choose, request } from "../api";
 import { format, useI18n } from "../i18n";
-import { Button, Card, CardHeader, EmptyState, Field, Input } from "../ui";
+import {
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  Input,
+  PasswordInput,
+} from "../ui";
 
 export function Restore({
   plans,
@@ -34,6 +44,11 @@ export function Restore({
   const [pending, setPending] = useState<{
     selection: string;
     target: string;
+  } | null>(null);
+  const [opening, setOpening] = useState<{
+    name: string;
+    folder: string;
+    key: string;
   } | null>(null);
   const plan = plans.find((p) => p.id === planId);
   const params = { planId, destinationId };
@@ -61,7 +76,22 @@ export function Restore({
   return (
     <div className="gx-stack">
       <Card>
-        <CardHeader title={r.findTitle} />
+        <CardHeader
+          title={r.findTitle}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                setOpening({ name: r.openNameDefault, folder: "", key: "" })
+              }
+            >
+              <FolderSearch size={14} aria-hidden="true" />
+              {r.openOther}
+            </Button>
+          }
+        />
         <div className="gx-filters">
           <Field label={r.plan} htmlFor="rs-plan">
             <GxSelect
@@ -253,6 +283,105 @@ export function Restore({
           </div>
         </Card>
       ) : null}
+
+      <GxDialog
+        open={!!opening}
+        onOpenChange={(o) => !o && setOpening(null)}
+        title={r.openOther}
+        description={r.openBody}
+        closeLabel={t.common.close}
+        width={540}
+      >
+        {opening ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const o = opening;
+              setOpening(null);
+              void act(async () => {
+                const p = await request<Plan>("openExistingBackup", {
+                  name: o.name,
+                  repository: o.folder,
+                  key: o.key,
+                });
+                notify(r.openOk);
+                setPlan(p.id);
+                setDestination(p.destinations[0]?.id ?? "");
+                setSnapshots([]);
+                setNodes([]);
+                setSelected("");
+              });
+            }}
+          >
+            <div className="gx-dialog__body">
+              <Field label={r.openName} htmlFor="rs-open-name">
+                <Input
+                  id="rs-open-name"
+                  value={opening.name}
+                  maxLength={120}
+                  onChange={(e) =>
+                    setOpening({ ...opening, name: e.target.value })
+                  }
+                />
+              </Field>
+              <div
+                className="gx-field"
+                role="group"
+                aria-labelledby="rs-open-folder-label"
+              >
+                <span className="gx-label" id="rs-open-folder-label">
+                  {r.openFolder}
+                </span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      void choose(true).then((folder) => {
+                        if (folder) setOpening({ ...opening, folder });
+                      })
+                    }
+                  >
+                    <FolderOpen size={15} aria-hidden="true" />
+                    {r.openChoose}
+                  </Button>
+                  {opening.folder ? (
+                    <span className="gx-path" title={opening.folder}>
+                      {opening.folder}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <Field label={r.openKey} htmlFor="rs-open-key">
+                <PasswordInput
+                  id="rs-open-key"
+                  value={opening.key}
+                  autoComplete="off"
+                  showLabel={t.signin.showPassword}
+                  hideLabel={t.signin.hidePassword}
+                  onChange={(e) =>
+                    setOpening({ ...opening, key: e.target.value })
+                  }
+                />
+              </Field>
+            </div>
+            <footer className="gx-dialog__foot">
+              <Button variant="secondary" onClick={() => setOpening(null)}>
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  !opening.name.trim() ||
+                  !opening.folder ||
+                  opening.key.trim().length < 8
+                }
+              >
+                {r.openSubmit}
+              </Button>
+            </footer>
+          </form>
+        ) : null}
+      </GxDialog>
 
       <GxDialog
         open={!!pending}
