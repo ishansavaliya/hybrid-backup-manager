@@ -10,6 +10,8 @@ export function normalizeLoginCode(input: string): string | null {
 }
 
 export function hashLoginCode(code: string, sessionSecret: string): string {
-  const key = createHmac("sha256", sessionSecret).update("bakvion-login-code").digest();
+  const key = createHmac("sha256", sessionSecret)
+    .update("bakvion-login-code")
+    .digest();
   return createHmac("sha256", key).update(code).digest("hex");
 }

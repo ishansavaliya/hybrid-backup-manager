@@ -25,7 +25,12 @@ export async function POST(req: Request) {
       { ip: clientIp(req), now: new Date() },
     );
     return Response.json(out, { status });
-  } catch {
+  } catch (err) {
+    // Message only: never the request body, tokens or env values.
+    console.error(
+      "/api/v1/device/license failed:",
+      err instanceof Error ? err.message : typeof err,
+    );
     const { status, body } = serverError();
     return Response.json(body, { status });
   }

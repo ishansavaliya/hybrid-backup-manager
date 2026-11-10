@@ -9,8 +9,14 @@ const messages: Record<string, string> = {
     "Your membership is not active. You can still restore existing backups.",
   DEVICE_REMOVED: "This PC was removed from your account. Sign in again.",
 };
-export function errorMessage(code: string, fallback: string): string {
-  return messages[code] ?? fallback;
+export function errorMessage(code: string, agentMessage: string): string {
+  // PC_LIMIT text comes from the server ("Your plan allows N PCs. ..."), passed
+  // through by the agent; it sends the bare code when the server gave none.
+  if (code === "PC_LIMIT") {
+    const text = agentMessage.trim();
+    if (text !== "" && text.toUpperCase() !== code) return text;
+  }
+  return messages[code] ?? agentMessage;
 }
 export function pluralDays(n: number): string {
   return n === 1 ? "1 day" : `${n} days`;

@@ -19,11 +19,19 @@ export async function hashPassword(plain: string): Promise<string> {
   return `scrypt$${N}$${R}$${P}$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
 
-export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+export async function verifyPassword(
+  plain: string,
+  stored: string,
+): Promise<boolean> {
   try {
     const parts = stored.split("$");
     if (parts.length !== 6 || parts[0] !== "scrypt") return false;
-    if (parts[1] !== String(N) || parts[2] !== String(R) || parts[3] !== String(P)) return false;
+    if (
+      parts[1] !== String(N) ||
+      parts[2] !== String(R) ||
+      parts[3] !== String(P)
+    )
+      return false;
     const salt = Buffer.from(parts[4], "base64");
     const expected = Buffer.from(parts[5], "base64");
     if (salt.length === 0 || expected.length !== KEY_LEN) return false;

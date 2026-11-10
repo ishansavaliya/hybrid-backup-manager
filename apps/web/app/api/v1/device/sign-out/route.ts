@@ -17,7 +17,12 @@ export async function POST(req: Request) {
       },
     );
     return Response.json(body, { status });
-  } catch {
+  } catch (err) {
+    // Message only: never the request body, tokens or env values.
+    console.error(
+      "/api/v1/device/sign-out failed:",
+      err instanceof Error ? err.message : typeof err,
+    );
     const { status, body } = serverError();
     return Response.json(body, { status });
   }

@@ -143,6 +143,54 @@ test("CODE_INVALID shows its message", async ({ page }) => {
   );
 });
 
+test("PC_LIMIT shows the server's message", async ({ page }) => {
+  await mock(page, {
+    status: signedOut,
+    signInError: {
+      code: "PC_LIMIT",
+      message: "Your plan allows 2 PCs. Contact your Bakvion provider.",
+    },
+  });
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("acme");
+  await page.getByLabel("Password").fill("secret-pass");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Your plan allows 2 PCs. Contact your Bakvion provider.",
+  );
+});
+
+test("PC_LIMIT without a server message shows the generic text", async ({
+  page,
+}) => {
+  await mock(page, {
+    status: signedOut,
+    signInError: { code: "PC_LIMIT", message: "pc_limit" },
+  });
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("acme");
+  await page.getByLabel("Password").fill("secret-pass");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Your plan's PC limit is reached. Contact your Bakvion provider.",
+  );
+});
+
+test("clock restore-only explains how to fix the date and time", async ({
+  page,
+}) => {
+  await mock(page, {
+    status: { ...base, mode: "restore_only", reason: "clock" },
+  });
+  await page.goto("/");
+  await expect(
+    page.getByText(
+      "Your PC's date and time look wrong. Correct them in Windows Settings, then click Sync now.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+});
+
 test("expiry badge shows days left", async ({ page }) => {
   await mock(page, {
     status: {

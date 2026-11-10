@@ -13,7 +13,12 @@ export async function GET(req: Request) {
     }
     const result = await runKeepalive(createSupabaseRepo(env), new Date());
     return Response.json({ ok: true, ...result });
-  } catch {
+  } catch (err) {
+    // Message only: never the request body, tokens or env values.
+    console.error(
+      "/api/cron/keepalive failed:",
+      err instanceof Error ? err.message : typeof err,
+    );
     return Response.json({ error: "Server error" }, { status: 500 });
   }
 }
