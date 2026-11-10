@@ -189,3 +189,38 @@ func (c *Client) SubmitLead(ctx context.Context, r LeadRequest) error {
 	}
 	return c.post(ctx, "/api/v1/leads", "", r, &out)
 }
+
+// ReportSettings are the client's email-report choices for this PC.
+type ReportSettings struct {
+	Emails []string `json:"emails"`
+	Mode   string   `json:"mode"`
+}
+
+// Report is one finished backup run, sent so the server can email it.
+type Report struct {
+	RunID           string `json:"runId"`
+	PlanName        string `json:"planName"`
+	DestinationName string `json:"destinationName"`
+	ScheduleKind    string `json:"scheduleKind"`
+	State           string `json:"state"`
+	StartedAt       string `json:"startedAt"`
+	FinishedAt      string `json:"finishedAt"`
+	Error           string `json:"error"`
+	Notes           string `json:"notes"`
+}
+
+// ReportBatch carries the current settings with any waiting reports. Test
+// asks the server for a test email to the configured addresses.
+type ReportBatch struct {
+	Settings ReportSettings `json:"settings"`
+	Reports  []Report       `json:"reports"`
+	Test     bool           `json:"test,omitempty"`
+}
+
+// SubmitReports delivers a batch with the device token.
+func (c *Client) SubmitReports(ctx context.Context, token string, b ReportBatch) error {
+	var out struct {
+		OK bool `json:"ok"`
+	}
+	return c.post(ctx, "/api/v1/device/reports", token, b, &out)
+}

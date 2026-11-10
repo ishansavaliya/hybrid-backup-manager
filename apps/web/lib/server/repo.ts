@@ -29,6 +29,36 @@ export interface DeviceRecord {
   firstSeenAt: Date;
   lastSeenAt: Date;
   removedAt: Date | null;
+  /** Email-report addresses and mode chosen in the app's Settings. */
+  reportEmails: string[];
+  reportMode: ReportMode;
+}
+
+export type ReportMode = "all" | "failures" | "off";
+export type ReportState = "succeeded" | "failed" | "interrupted";
+export type ReportScheduleKind = "manual" | "hourly" | "daily" | "weekly";
+export type ReportEmailStatus =
+  "pending" | "digest" | "sent" | "skipped" | "failed";
+
+/** One finished backup run as reported by a PC. */
+export interface ReportInput {
+  runId: string;
+  planName: string;
+  destinationName: string;
+  scheduleKind: ReportScheduleKind;
+  state: ReportState;
+  startedAt: Date;
+  finishedAt: Date;
+  error: string;
+  notes: string;
+}
+
+export interface ReportRecord extends ReportInput {
+  id: string;
+  deviceId: string;
+  clientId: string;
+  receivedAt: Date;
+  emailStatus: ReportEmailStatus;
 }
 
 export interface DeviceInfo {
@@ -156,6 +186,26 @@ export interface Repo {
     clientId?: string,
   ): Promise<void>;
   countNewLeads(): Promise<number>;
+  setReportSettings(
+    deviceId: string,
+    emails: string[],
+    mode: ReportMode,
+  ): Promise<void>;
+  /** Stores runs not seen before (per device and run id); returns only the new ones. */
+  addReports(
+    deviceId: string,
+    clientId: string,
+    reports: ReportInput[],
+    now: Date,
+  ): Promise<ReportRecord[]>;
+  setReportEmailStatus(ids: string[], status: ReportEmailStatus): Promise<void>;
+  /** Successful hourly runs waiting for the daily summary, with their PC and client. */
+  digestReports(
+    limit: number,
+  ): Promise<(ReportRecord & { device: DeviceRecord; client: ClientRecord })[]>;
+  /** Latest run per PC of a client, keyed by device id. */
+  lastReports(clientId: string): Promise<Record<string, ReportRecord>>;
+  pruneReports(olderThan: Date): Promise<number>;
 }
 
 const LOGIN_NAME = /^[a-zA-Z0-9._-]{3,64}$/;

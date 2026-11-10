@@ -9,6 +9,7 @@ import {
   type DeviceRecord,
   type LeadRecord,
   type RegisterOutcome,
+  type ReportRecord,
   type Repo,
 } from "../repo";
 
@@ -31,9 +32,11 @@ interface MemoryToken {
 type AuditRow = AuditEntry & { id: number; at: Date };
 
 /** In-memory Repo mirroring the SQL semantics of 202611100001_accounts.sql. For tests only. */
-export function createMemoryRepo(seed?: {
-  clients?: ClientRecord[];
-}): Repo & { codes: Map<string, MemoryCode>; devices: DeviceRecord[] } {
+export function createMemoryRepo(seed?: { clients?: ClientRecord[] }): Repo & {
+  codes: Map<string, MemoryCode>;
+  devices: DeviceRecord[];
+  reports: ReportRecord[];
+} {
   const clients = new Map<string, ClientRecord>();
   for (const c of seed?.clients ?? []) clients.set(c.id, { ...c });
   const logins = new Map<string, { username: string; passwordHash: string }>();
@@ -44,6 +47,7 @@ export function createMemoryRepo(seed?: {
   const auditRows: AuditRow[] = [];
   const settings = new Map<string, string>([["renew_contact", ""]]);
   const leads: LeadRecord[] = [];
+  const reports: ReportRecord[] = [];
   let auditSeq = 0;
 
   const windowOver = (start: Date, seconds: number, now: Date) =>
@@ -98,6 +102,8 @@ export function createMemoryRepo(seed?: {
         firstSeenAt: now,
         lastSeenAt: now,
         removedAt: null,
+        reportEmails: [],
+        reportMode: "all",
       };
       devices.push(device);
     }
@@ -117,6 +123,7 @@ export function createMemoryRepo(seed?: {
   return {
     codes,
     devices,
+    reports,
 
     async findLogin(username) {
       if (!isLoginNameShape(username)) return null;
@@ -398,6 +405,71 @@ export function createMemoryRepo(seed?: {
     },
     async countNewLeads() {
       return leads.filter((l) => l.status === "new").length;
+    },
+
+    async setReportSettings(deviceId, emails, mode) {
+      const device = devices.find((d) => d.id === deviceId);
+      if (!device) return;
+      device.reportEmails = [...emails];
+      device.reportMode = mode;
+    },
+
+    async addReports(deviceId, clientId, input, now) {
+      const added: ReportRecord[] = [];
+      for (const r of input) {
+        if (reports.some((x) => x.deviceId === deviceId && x.runId === r.runId))
+          continue;
+        const row: ReportRecord = {
+          ...r,
+          id: randomUUID(),
+          deviceId,
+          clientId,
+          receivedAt: now,
+          emailStatus: "pending",
+        };
+        reports.push(row);
+        added.push({ ...row });
+      }
+      return added;
+    },
+
+    async setReportEmailStatus(ids, status) {
+      for (const r of reports) if (ids.includes(r.id)) r.emailStatus = status;
+    },
+
+    async digestReports(limit) {
+      return reports
+        .filter((r) => r.emailStatus === "digest")
+        .sort((a, b) => a.finishedAt.getTime() - b.finishedAt.getTime())
+        .slice(0, limit)
+        .flatMap((r) => {
+          const device = devices.find((d) => d.id === r.deviceId);
+          const client = clients.get(r.clientId);
+          return device && client
+            ? [{ ...r, device: { ...device }, client: { ...client } }]
+            : [];
+        });
+    },
+
+    async lastReports(clientId) {
+      const out: Record<string, ReportRecord> = {};
+      for (const r of [...reports].sort(
+        (a, b) => b.finishedAt.getTime() - a.finishedAt.getTime(),
+      )) {
+        if (r.clientId === clientId) out[r.deviceId] ??= { ...r };
+      }
+      return out;
+    },
+
+    async pruneReports(olderThan) {
+      let n = 0;
+      for (let i = reports.length - 1; i >= 0; i--) {
+        if (reports[i]!.finishedAt.getTime() < olderThan.getTime()) {
+          reports.splice(i, 1);
+          n++;
+        }
+      }
+      return n;
     },
   };
 }

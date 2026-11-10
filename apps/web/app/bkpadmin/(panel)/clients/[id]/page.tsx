@@ -70,10 +70,11 @@ export default async function ClientPage({
   const repo = createSupabaseRepo(serverEnv());
   const client = await repo.getClient(id);
   if (!client) notFound();
-  const [devices, history, clients] = await Promise.all([
+  const [devices, history, clients, lastRuns] = await Promise.all([
     repo.listDevices(id),
     repo.listAudit({ clientId: id, limit: 8 }),
     repo.listClients(),
+    repo.lastReports(id),
   ]);
   const summary = clients.find((c) => c.id === id);
   const username = summary?.username ?? null;
@@ -90,6 +91,16 @@ export default async function ClientPage({
       mode: d.mode,
       lastSeenAt: d.lastSeenAt.toISOString(),
       lastSeenLabel: daysAgo(d.lastSeenAt, now),
+      lastBackup: lastRuns[d.id]
+        ? {
+            at: lastRuns[d.id]!.finishedAt.toISOString(),
+            label: formatDateTime(lastRuns[d.id]!.finishedAt),
+            state: lastRuns[d.id]!.state,
+            plan: lastRuns[d.id]!.planName,
+          }
+        : null,
+      reportEmails: d.reportEmails,
+      reportMode: d.reportMode,
     }));
   const pcsUsed = deviceRows.filter((d) => d.mode === "full").length;
 

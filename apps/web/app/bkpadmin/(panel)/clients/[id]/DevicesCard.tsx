@@ -13,7 +13,27 @@ export interface DeviceRow {
   mode: "full" | "restore_only";
   lastSeenAt: string;
   lastSeenLabel: string;
+  lastBackup: {
+    at: string;
+    label: string;
+    state: "succeeded" | "failed" | "interrupted";
+    plan: string;
+  } | null;
+  reportEmails: string[];
+  reportMode: "all" | "failures" | "off";
 }
+
+const RUN_BADGE = {
+  succeeded: { tone: "success", label: "Completed" },
+  failed: { tone: "danger", label: "Failed" },
+  interrupted: { tone: "warning", label: "Interrupted" },
+} as const;
+
+const MODE_LABEL = {
+  all: "Every backup",
+  failures: "Failures only",
+  off: "Off",
+} as const;
 
 const col = createColumnHelper<DeviceRow>();
 
@@ -48,6 +68,47 @@ function columns(clientId: string) {
             Restore only
           </Badge>
         ),
+    }),
+    col.accessor((r) => r.lastBackup?.at ?? "", {
+      id: "lastBackup",
+      header: "Last backup",
+      cell: (c) => {
+        const b = c.row.original.lastBackup;
+        if (!b) return <span className="gx-muted">No reports yet</span>;
+        const badge = RUN_BADGE[b.state];
+        return (
+          <div className="gx-cell-main">
+            <span>
+              <Badge tone={badge.tone} dot>
+                {badge.label}
+              </Badge>
+            </span>
+            <span className="gx-cell-sub">
+              {b.plan} · {b.label}
+            </span>
+          </div>
+        );
+      },
+    }),
+    col.accessor((r) => r.reportEmails.length, {
+      id: "reports",
+      header: "Email reports",
+      enableSorting: false,
+      cell: (c) => {
+        const { reportEmails, reportMode } = c.row.original;
+        if (!reportEmails.length || reportMode === "off")
+          return <span className="gx-muted">Off</span>;
+        return (
+          <div className="gx-cell-main">
+            <span>{MODE_LABEL[reportMode]}</span>
+            <span className="gx-cell-sub" title={reportEmails.join(", ")}>
+              {reportEmails.length === 1
+                ? reportEmails[0]
+                : `${reportEmails.length} addresses`}
+            </span>
+          </div>
+        );
+      },
     }),
     col.accessor("lastSeenAt", {
       header: "Last seen",

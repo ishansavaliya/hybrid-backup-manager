@@ -354,57 +354,128 @@ try {
     },
   );
 
-  await check("leads migration: RLS, browser roles blocked, constraints", async () => {
-    await db.exec(
-      await readFile(
-        new URL(
-          "../../supabase/migrations/202611100002_leads.sql",
-          import.meta.url,
+  await check(
+    "leads migration: RLS, browser roles blocked, constraints",
+    async () => {
+      await db.exec(
+        await readFile(
+          new URL(
+            "../../supabase/migrations/202611100002_leads.sql",
+            import.meta.url,
+          ),
+          "utf8",
         ),
-        "utf8",
-      ),
-    );
-    const { rows } = await db.query(
-      `select rowsecurity from pg_tables where schemaname='public' and tablename='leads'`,
-    );
-    assert.equal(rows[0].rowsecurity, true);
-    const { rows: ins } = await db.query(
-      `insert into leads(source, name, business, phone) values ('app','Asha','Mehta Traders','9876543210') returning status, email_sent`,
-    );
-    assert.equal(ins[0].status, "new");
-    assert.equal(ins[0].email_sent, false);
-    await assert.rejects(() =>
-      db.query(
-        `insert into leads(source, name, business, phone) values ('fax','a','b','1')`,
-      ),
-    );
-    await assert.rejects(() =>
-      db.query(
-        `insert into leads(source, name, business, phone, pcs) values ('app','a','b','1', 0)`,
-      ),
-    );
-    await assert.rejects(() =>
-      db.query(`update leads set status = 'won'`),
-    );
-    for (const role of ["anon", "authenticated"]) {
-      await db.exec(`set role ${role}`);
-      try {
-        await assert.rejects(
-          () => db.query("select * from leads"),
-          /permission denied/,
-        );
-        await assert.rejects(
-          () =>
-            db.query(
-              `insert into leads(source, name, business, phone) values ('website','x','y','1')`,
-            ),
-          /permission denied/,
-        );
-      } finally {
-        await db.exec("reset role");
+      );
+      const { rows } = await db.query(
+        `select rowsecurity from pg_tables where schemaname='public' and tablename='leads'`,
+      );
+      assert.equal(rows[0].rowsecurity, true);
+      const { rows: ins } = await db.query(
+        `insert into leads(source, name, business, phone) values ('app','Asha','Mehta Traders','9876543210') returning status, email_sent`,
+      );
+      assert.equal(ins[0].status, "new");
+      assert.equal(ins[0].email_sent, false);
+      await assert.rejects(() =>
+        db.query(
+          `insert into leads(source, name, business, phone) values ('fax','a','b','1')`,
+        ),
+      );
+      await assert.rejects(() =>
+        db.query(
+          `insert into leads(source, name, business, phone, pcs) values ('app','a','b','1', 0)`,
+        ),
+      );
+      await assert.rejects(() => db.query(`update leads set status = 'won'`));
+      for (const role of ["anon", "authenticated"]) {
+        await db.exec(`set role ${role}`);
+        try {
+          await assert.rejects(
+            () => db.query("select * from leads"),
+            /permission denied/,
+          );
+          await assert.rejects(
+            () =>
+              db.query(
+                `insert into leads(source, name, business, phone) values ('website','x','y','1')`,
+              ),
+            /permission denied/,
+          );
+        } finally {
+          await db.exec("reset role");
+        }
       }
-    }
-  });
+    },
+  );
+
+  await check(
+    "backup reports migration: device settings, dedupe, RLS",
+    async () => {
+      await db.exec(
+        await readFile(
+          new URL(
+            "../../supabase/migrations/202611110001_backup_reports.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      const clientId = await newClient({ pcLimit: 3 });
+      const dev = await register(clientId, "b".repeat(32));
+      const { rows: d } = await db.query(
+        `select report_emails, report_mode from devices where id = $1`,
+        [dev.device_id],
+      );
+      assert.deepEqual(d[0].report_emails, []);
+      assert.equal(d[0].report_mode, "all");
+      await assert.rejects(() =>
+        db.query(`update devices set report_mode = 'daily' where id = $1`, [
+          dev.device_id,
+        ]),
+      );
+      await assert.rejects(() =>
+        db.query(
+          `update devices set report_emails = array['a@b.in','c@d.in','e@f.in','g@h.in'] where id = $1`,
+          [dev.device_id],
+        ),
+      );
+      const insert = (runId, state = "succeeded", kind = "daily") =>
+        db.query(
+          `insert into backup_reports(device_id, client_id, run_id, plan_name, destination_name, schedule_kind, state, started_at, finished_at)
+         values ($1, $2, $3, 'Tally', 'SSD', $4, $5, $6, $6)
+         on conflict (device_id, run_id) do nothing returning email_status`,
+          [dev.device_id, clientId, runId, kind, state, NOW],
+        );
+      const first = await insert("run-1");
+      assert.equal(first.rows[0].email_status, "pending");
+      assert.equal((await insert("run-1")).rows.length, 0);
+      await assert.rejects(() => insert("run-2", "cancelled"));
+      await assert.rejects(() => insert("run-3", "failed", "yearly"));
+      await assert.rejects(() =>
+        db.query(`update backup_reports set email_status = 'queued'`),
+      );
+      const { rows: rls } = await db.query(
+        `select rowsecurity from pg_tables where schemaname='public' and tablename='backup_reports'`,
+      );
+      assert.equal(rls[0].rowsecurity, true);
+      for (const role of ["anon", "authenticated"]) {
+        await db.exec(`set role ${role}`);
+        try {
+          await assert.rejects(
+            () => db.query("select * from backup_reports"),
+            /permission denied/,
+          );
+        } finally {
+          await db.exec("reset role");
+        }
+      }
+      await db.query(`delete from devices where id = $1`, [dev.device_id]);
+      const { rows: left } = await db.query(
+        `select count(*)::int as n from backup_reports where device_id = $1`,
+        [dev.device_id],
+      );
+      assert.equal(left[0].n, 0);
+    },
+  );
 } finally {
   await db.close();
 }

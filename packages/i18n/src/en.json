@@ -338,7 +338,21 @@
       "kitNeeded": "New keys were created. Save your recovery kit now.",
       "kitSaved": "Last saved {date}",
       "kitSave": "Save recovery kit",
-      "kitDone": "Recovery kit saved: {path}"
+      "kitDone": "Recovery kit saved: {path}",
+      "reportsTitle": "Email reports",
+      "reportsBody": "Get an email after backups run: what was saved, what failed and how to fix it. Hourly plans send one summary a day.",
+      "reportsWhen": "Send",
+      "modeAll": "Every backup",
+      "modeFailures": "Only failures",
+      "modeOff": "Off",
+      "reportsEmail": "Email address {n}",
+      "reportsAdd": "Add another email",
+      "reportsSave": "Save",
+      "reportsSaved": "Email report settings saved.",
+      "reportsTest": "Send test email",
+      "reportsTestSent": "Test email sent to {emails}. Check the inbox and the spam folder.",
+      "reportsHint": "Reports are sent when this PC is online. If it is offline, they are sent as soon as it reconnects.",
+      "reportsInvalid": "Check the email addresses."
     },
     "notice": {
       "expired": "Your membership has expired.",

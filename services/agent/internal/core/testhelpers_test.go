@@ -57,6 +57,8 @@ type fakeCloud struct {
 	deviceID   string // "" means "device-1"
 	onRefresh  func()
 	leads      []cloud.LeadRequest
+	reports    []cloud.ReportBatch
+	reportErr  error
 	leadErr    error
 	signIns    []cloud.SignInRequest
 	refreshes  []string
@@ -157,5 +159,17 @@ func (f *fakeCloud) SubmitLead(_ context.Context, r cloud.LeadRequest) error {
 		return f.leadErr
 	}
 	f.leads = append(f.leads, r)
+	return nil
+}
+func (f *fakeCloud) SubmitReports(_ context.Context, token string, b cloud.ReportBatch) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if token != testDeviceToken {
+		return &cloud.APIError{Status: 401, Code: "unauthorized"}
+	}
+	if f.reportErr != nil {
+		return f.reportErr
+	}
+	f.reports = append(f.reports, b)
 	return nil
 }

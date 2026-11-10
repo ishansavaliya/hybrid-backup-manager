@@ -10,9 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/flock"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/cloud"
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/license"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -27,6 +29,9 @@ type Agent struct {
 	MachineInfo func() (machine, windows string)
 	// Sealer protects managed destination keys; nil picks the platform default.
 	Sealer Sealer
+
+	nudgeOnce   sync.Once
+	reportNudge chan struct{}
 }
 
 func NewID() string {
@@ -161,7 +166,8 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 		_, err = a.Store.DB.Exec(`UPDATE job_executions SET state='failed',finished_at=?,error=? WHERE id=?`, now(), err.Error(), id)
 		return true, err
 	}
-	if _, err = a.Store.DB.Exec(`UPDATE job_executions SET state='running',started_at=? WHERE id=?`, now(), id); err != nil {
+	startedAt := now()
+	if _, err = a.Store.DB.Exec(`UPDATE job_executions SET state='running',started_at=? WHERE id=?`, startedAt, id); err != nil {
 		return false, err
 	}
 	var snapshot, notes string
@@ -193,8 +199,17 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 		state = "interrupted"
 		message = "operation interrupted; repository may contain an unrecorded completed snapshot"
 	}
-	_, dbErr := a.Store.DB.Exec(`UPDATE job_executions SET state=?,snapshot_id=?,finished_at=?,error=?,notes=? WHERE id=?`, state, snapshot, now(), message, notes, id)
-	return true, dbErr
+	finishedAt := now()
+	if _, dbErr := a.Store.DB.Exec(`UPDATE job_executions SET state=?,snapshot_id=?,finished_at=?,error=?,notes=? WHERE id=?`, state, snapshot, finishedAt, message, notes, id); dbErr != nil {
+		return true, dbErr
+	}
+	// The run is recorded; a report problem never fails it.
+	_ = a.queueReport(cloud.Report{
+		RunID: id, PlanName: cfg.Plan.Name, DestinationName: cfg.Destination.Name,
+		ScheduleKind: cfg.Plan.Schedule.Kind, State: state,
+		StartedAt: startedAt, FinishedAt: finishedAt, Error: message, Notes: notes,
+	})
+	return true, nil
 }
 func (a *Agent) destination(plan, id string) (Destination, error) {
 	p, err := a.Store.Plan(plan)
@@ -233,6 +248,8 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 	switch r.Method {
 	case "accountStatus", "signIn", "signOut", "refreshLicense", "submitLead":
 		return a.handleAccount(ctx, r)
+	case "reportSettings", "setReportSettings", "sendTestReport":
+		return a.handleReports(ctx, r)
 	case "overview":
 		plans, err := a.Store.Plans()
 		if err != nil {

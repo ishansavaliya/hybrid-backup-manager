@@ -5,6 +5,7 @@ import { choose, request } from "../api";
 import { format, LANG_NAME, LANGS, useI18n, type Lang } from "../i18n";
 import type { ThemePref } from "../theme";
 import { Button, Card, CardHeader, Field, Notice, Segmented } from "../ui";
+import { EmailReports } from "./EmailReports";
 
 export function Settings({
   status,
@@ -131,6 +132,12 @@ export function Settings({
             {s.serviceBody}
           </p>
         </Card>
+        <EmailReports
+          signedIn={!!status?.signedIn}
+          busy={busy}
+          act={act}
+          notify={notify}
+        />
       </div>
     </div>
   );

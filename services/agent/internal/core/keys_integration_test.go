@@ -158,3 +158,19 @@ func TestRecoveryKitFileIsPrivate(t *testing.T) {
 		t.Fatal("relative folder accepted")
 	}
 }
+
+func TestRealRunQueuesEmailReport(t *testing.T) {
+	a, p := managedFixture(t)
+	if r := pipe(t, a, "initRepository", map[string]string{"planId": p.ID, "destinationId": "local"}); r.Error != nil {
+		t.Fatalf("set up: %+v", r.Error)
+	}
+	job := backupOnce(t, a, p)
+	reports, err := a.outbox()
+	if err != nil || len(reports) != 1 {
+		t.Fatalf("outbox: %+v %v", reports, err)
+	}
+	r := reports[0]
+	if r.RunID != job.ID || r.State != "succeeded" || r.PlanName != p.Name || r.DestinationName != "Local" || r.ScheduleKind != "manual" || r.FinishedAt == "" {
+		t.Fatalf("report: %+v", r)
+	}
+}

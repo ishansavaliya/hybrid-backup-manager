@@ -11,6 +11,11 @@ import {
   type DeviceRecord,
   type LeadRecord,
   type LeadStatus,
+  type ReportEmailStatus,
+  type ReportMode,
+  type ReportRecord,
+  type ReportScheduleKind,
+  type ReportState,
   type RegisterOutcome,
   type Repo,
 } from "./repo";
@@ -73,6 +78,29 @@ function toDevice(r: Row): DeviceRecord {
     firstSeenAt: date(r.first_seen_at),
     lastSeenAt: date(r.last_seen_at),
     removedAt: dateOrNull(r.removed_at),
+    reportEmails: Array.isArray(r.report_emails)
+      ? r.report_emails.map(String)
+      : [],
+    reportMode: (r.report_mode as ReportMode | undefined) ?? "all",
+  };
+}
+
+function toReport(r: Row): ReportRecord {
+  return {
+    id: str(r.id),
+    deviceId: str(r.device_id),
+    clientId: str(r.client_id),
+    runId: str(r.run_id),
+    planName: str(r.plan_name),
+    destinationName: str(r.destination_name),
+    scheduleKind: str(r.schedule_kind) as ReportScheduleKind,
+    state: str(r.state) as ReportState,
+    startedAt: date(r.started_at),
+    finishedAt: date(r.finished_at),
+    error: str(r.error),
+    notes: str(r.notes),
+    receivedAt: date(r.received_at),
+    emailStatus: str(r.email_status) as ReportEmailStatus,
   };
 }
 
@@ -505,6 +533,94 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
         .eq("status", "new");
       if (error) fail("countNewLeads", error);
       return count ?? 0;
+    },
+
+    async setReportSettings(deviceId, emails, mode) {
+      const { error } = await db
+        .from("devices")
+        .update({ report_emails: emails, report_mode: mode })
+        .eq("id", deviceId);
+      if (error) fail("setReportSettings", error);
+    },
+
+    async addReports(deviceId, clientId, reports, now) {
+      if (!reports.length) return [];
+      const { data, error } = await db
+        .from("backup_reports")
+        .upsert(
+          reports.map((r) => ({
+            device_id: deviceId,
+            client_id: clientId,
+            run_id: r.runId,
+            plan_name: r.planName,
+            destination_name: r.destinationName,
+            schedule_kind: r.scheduleKind,
+            state: r.state,
+            started_at: iso(r.startedAt),
+            finished_at: iso(r.finishedAt),
+            error: r.error,
+            notes: r.notes,
+            received_at: iso(now),
+          })),
+          { onConflict: "device_id,run_id", ignoreDuplicates: true },
+        )
+        .select("*");
+      if (error) fail("addReports", error);
+      return (data ?? []).map((r) => toReport(r as Row));
+    },
+
+    async setReportEmailStatus(ids, status) {
+      if (!ids.length) return;
+      const { error } = await db
+        .from("backup_reports")
+        .update({ email_status: status })
+        .in("id", ids);
+      if (error) fail("setReportEmailStatus", error);
+    },
+
+    async digestReports(limit) {
+      const { data, error } = await db
+        .from("backup_reports")
+        .select("*, devices(*, clients(*))")
+        .eq("email_status", "digest")
+        .order("finished_at", { ascending: true })
+        .limit(limit);
+      if (error) fail("digestReports", error);
+      return (data ?? []).flatMap((raw) => {
+        const r = raw as Row;
+        const dev = one(r.devices);
+        const cl = dev ? one(dev.clients) : null;
+        if (!dev || !cl) return [];
+        return [
+          { ...toReport(r), device: toDevice(dev), client: toClient(cl) },
+        ];
+      });
+    },
+
+    async lastReports(clientId) {
+      const { data, error } = await db
+        .from("backup_reports")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("finished_at", { ascending: false })
+        .limit(500);
+      if (error) fail("lastReports", error);
+      const out: Record<string, ReportRecord> = {};
+      for (const raw of data ?? []) {
+        const r = toReport(raw as Row);
+        out[r.deviceId] ??= r;
+      }
+      return out;
+    },
+
+    async pruneReports(olderThan) {
+      const { data, error } = await db
+        .from("backup_reports")
+        .delete()
+        .lt("finished_at", iso(olderThan))
+        .select("id");
+      if (error) fail("pruneReports", error);
+      return data?.length ?? 0;
     },
   };
 }

@@ -19,6 +19,7 @@ type CloudAPI interface {
 	RefreshLicense(context.Context, string, string) (string, error)
 	SignOut(context.Context, string) error
 	SubmitLead(context.Context, cloud.LeadRequest) error
+	SubmitReports(context.Context, string, cloud.ReportBatch) error
 }
 
 // AccountStatus is the pipe view of the membership. It never contains tokens.

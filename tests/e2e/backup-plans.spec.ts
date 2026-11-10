@@ -72,6 +72,15 @@ async function mock(
                 kit: o.kit ?? { needed: false, savedAt: null },
               },
             };
+          if (method === "reportSettings")
+            return {
+              version: 1,
+              result: { emails: ["owner@shop.in"], mode: "failures" },
+            };
+          if (method === "setReportSettings")
+            return { version: 1, result: params };
+          if (method === "sendTestReport")
+            return { version: 1, result: { sent: true } };
           if (method === "exportRecoveryKit")
             return {
               version: 1,
@@ -225,5 +234,50 @@ test("settings asks to save the recovery kit and exports it", async ({
     });
   await expect(
     page.getByText("Recovery kit saved: D:\\Safe\\Bakvion-Recovery-Kit.txt"),
+  ).toBeVisible();
+});
+
+test("email reports: shows saved settings, saves changes, sends a test", async ({
+  page,
+}) => {
+  await mock(page, { plans: [plan] });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const email1 = page.getByLabel("Email address 1", { exact: true });
+  await expect(email1).toHaveValue("owner@shop.in");
+  await expect(
+    page.getByRole("button", { name: "Only failures" }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("button", { name: "Add another email" }).click();
+  const email2 = page.getByLabel("Email address 2", { exact: true });
+  await email2.fill("not-an-email");
+  await expect(page.getByText("Check the email addresses.")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Save", exact: true }),
+  ).toBeDisabled();
+  await email2.fill("ca@firm.in");
+  await page.getByRole("button", { name: "Every backup" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(() => sent(page, "setReportSettings"))
+    .toEqual({
+      emails: ["owner@shop.in", "ca@firm.in"],
+      mode: "all",
+    });
+  await expect(page.getByText("Email report settings saved.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Send test email" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as unknown as { __calls: { method: string }[] }).__calls.some(
+          (c) => c.method === "sendTestReport",
+        ),
+      ),
+    )
+    .toBe(true);
+  await expect(
+    page.getByText("Test email sent to owner@shop.in, ca@firm.in."),
   ).toBeVisible();
 });
