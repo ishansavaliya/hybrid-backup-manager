@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Branch `feat/admin-graphite` (from `feat/accounts-membership` f72a02d). Never commit to `main`. No force push.
+- Branch `feat/accounts-membership` (owner: all work on this one branch until its pull request). Never commit to `main`. No force push.
 - Only new dependency: `@tanstack/react-table` (^8) in `@bakvion/web`.
 - Graphite tokens (verbatim from spec §10): dark bg `#121417`, panel `#181b1f`, border `#23272e`, text `#e8e9ec`, muted `#7d838e`; light bg `#f6f5f2`, panel `#ffffff`, border `#e7e4de`, text `#15171a`, muted `#6c717a`; accent saffron `#ff8a1f` (dark) / `#f07a0f` (light); success green, warning amber; panel radius 14px; Manrope typeface.
 - Theme: first visit follows the OS (`prefers-color-scheme`); toggle in top bar persists in `localStorage` key `bkp-admin-theme` (`"light" | "dark"`), applied before paint (no flash).
