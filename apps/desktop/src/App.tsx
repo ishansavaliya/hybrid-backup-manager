@@ -111,7 +111,7 @@ export default function App() {
   );
   const last = successful[0];
   const acct = account.status;
-  const backupsPaused = !!acct && acct.mode !== "full";
+  const backupsPaused = !acct || acct.mode !== "full";
   if (
     acct &&
     acct.mode === "signed_out" &&
@@ -122,8 +122,7 @@ export default function App() {
       <SignIn
         error={account.error}
         onSignIn={async (p) => {
-          await account.signIn(p);
-          setShowSignIn(false);
+          if (await account.signIn(p)) setShowSignIn(false);
         }}
         onCancel={plans.length ? () => setShowSignIn(false) : undefined}
       />
@@ -221,8 +220,8 @@ export default function App() {
           {acct && backupsPaused && (
             <RestoreOnlyNotice
               status={acct}
-              busy={busy}
-              onSync={() => void account.syncNow()}
+              error={account.error}
+              onSync={account.syncNow}
               onSignIn={() => setShowSignIn(true)}
             />
           )}

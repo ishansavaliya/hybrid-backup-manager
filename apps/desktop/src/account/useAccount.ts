@@ -27,14 +27,16 @@ export function useAccount() {
     const timer = setInterval(() => void reload(), POLL_MS);
     return () => clearInterval(timer);
   }, [reload]);
-  async function run(method: string, params?: unknown) {
+  async function run(method: string, params?: unknown): Promise<boolean> {
     setError("");
     try {
       const result = await request<AccountStatus | true>(method, params);
       if (typeof result === "object") setStatus(result);
       else await reload();
+      return true;
     } catch (e) {
       setError(describe(e));
+      return false;
     }
   }
   return {

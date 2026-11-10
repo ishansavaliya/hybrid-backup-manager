@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@bakvion/ui";
 import type { AccountStatus } from "@bakvion/shared-types";
 
@@ -12,15 +13,24 @@ const reasons: Record<string, string> = {
 
 export function RestoreOnlyNotice({
   status,
-  busy,
+  error,
   onSync,
   onSignIn,
 }: {
   status: AccountStatus;
-  busy: boolean;
-  onSync: () => void;
+  error: string;
+  onSync: () => Promise<boolean>;
   onSignIn: () => void;
 }) {
+  const [syncing, setSyncing] = useState(false);
+  async function sync() {
+    setSyncing(true);
+    try {
+      await onSync();
+    } finally {
+      setSyncing(false);
+    }
+  }
   return (
     <div className="notice" role="status">
       <strong>{reasons[status.reason] ?? "Backups are paused."}</strong>
@@ -28,8 +38,13 @@ export function RestoreOnlyNotice({
         New backups are paused. You can still restore your existing backups.
         {status.renewContact && ` Contact ${status.renewContact} to renew.`}
       </p>
+      {error && <p role="alert">{error}</p>}
       <div className="row">
-        <Button className="secondary" disabled={busy} onClick={onSync}>
+        <Button
+          className="secondary"
+          disabled={syncing}
+          onClick={() => void sync()}
+        >
           Sync now
         </Button>
         {status.mode === "signed_out" && (

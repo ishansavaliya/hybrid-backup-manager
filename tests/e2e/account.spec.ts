@@ -38,6 +38,7 @@ async function mock(
     status: Json;
     plans?: unknown[];
     signInError?: { code: string; message: string };
+    refreshError?: { code: string; message: string };
   },
 ) {
   await page.addInitScript((o) => {
@@ -54,6 +55,8 @@ async function mock(
       ) => {
         const { method, params } = args.request;
         w.__calls.push({ method, params });
+        if (method === "refreshLicense" && o.refreshError)
+          return { version: 1, error: o.refreshError };
         if (method === "accountStatus" || method === "refreshLicense")
           return { version: 1, result: o.status };
         if (method === "signIn")
@@ -177,17 +180,43 @@ test("restore-only blocks new backups but Recovery works", async ({ page }) => {
       renewContact: "help@bakvion.example",
     },
     plans: [plan],
+    refreshError: { code: "OFFLINE", message: "raw" },
   });
   await page.goto("/");
   await expect(page.getByText("Your membership has expired.")).toBeVisible();
+  await page.getByRole("button", { name: "Sync now" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "No internet connection. Connect to the internet and try again.",
+  );
   await expect(page.getByText("help@bakvion.example").first()).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Create backup plan" }),
   ).toBeDisabled();
+  await page.getByRole("button", { name: "Backup plans", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Run backup" })).toBeDisabled();
   await page.getByRole("button", { name: "Recovery", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Recovery", exact: true }),
   ).toBeVisible();
+});
+
+test("failed sign-in keeps the sign-in screen open with the error", async ({
+  page,
+}) => {
+  await mock(page, {
+    status: signedOut,
+    plans: [plan],
+    signInError: { code: "CODE_INVALID", message: "raw" },
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "6-digit code" }).click();
+  for (let i = 1; i <= 6; i++) await page.getByLabel(`Digit ${i}`).fill("1");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "This code is wrong, already used, or expired.",
+  );
+  await expect(page.getByLabel("Digit 1")).toBeVisible();
 });
 
 test("settings shows last sync and Sync now refreshes the licence", async ({

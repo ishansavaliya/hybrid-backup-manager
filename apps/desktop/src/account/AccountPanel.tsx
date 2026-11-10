@@ -22,12 +22,12 @@ export function AccountPanel({
 }: {
   status: AccountStatus;
   error: string;
-  onSync: () => Promise<void>;
-  onSignOut: () => Promise<void>;
+  onSync: () => Promise<boolean>;
+  onSignOut: () => Promise<boolean>;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<boolean>) {
     setBusy(true);
     try {
       await fn();
