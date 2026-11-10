@@ -1,12 +1,32 @@
-import Link from "next/link";
-import { Button, Card } from "@bakvion/ui";
 import { isUuid } from "../../../../lib/server/admin-service";
 import { serverEnv } from "../../../../lib/server/env";
 import { createSupabaseRepo } from "../../../../lib/server/repo-supabase";
-import { formatDateTime } from "../format";
 import { requireAdmin } from "../../../../lib/server/admin-session";
+import { daysAgo, formatDateTime } from "../format";
+import { PageHeader } from "../../ui";
+import { HistoryTable, type HistoryRow } from "./HistoryTable";
 
 export const dynamic = "force-dynamic";
+
+/** Small, readable key/value pairs for the details column (never raw JSON). */
+function detailPairs(
+  details: Record<string, unknown> | undefined,
+): [string, string][] {
+  if (!details) return [];
+  return Object.entries(details)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .slice(0, 4)
+    .map(([k, v]) => {
+      const key = k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+      const value =
+        typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)
+          ? formatDateTime(new Date(v))
+          : typeof v === "object"
+            ? JSON.stringify(v)
+            : String(v);
+      return [key, value.length > 60 ? `${value.slice(0, 57)}…` : value];
+    });
+}
 
 export default async function HistoryPage({
   searchParams,
@@ -17,75 +37,40 @@ export default async function HistoryPage({
   const { client: rawClient } = await searchParams;
   // Ignore anything that is not a client id (e.g. a hand-edited URL).
   const client =
-    typeof rawClient === "string" && isUuid(rawClient) ? rawClient : undefined;
+    typeof rawClient === "string" && isUuid(rawClient) ? rawClient : null;
   const repo = createSupabaseRepo(serverEnv());
-  const [rows, clients] = await Promise.all([
-    repo.listAudit({ clientId: client, limit: 200 }),
+  const [audit, clients] = await Promise.all([
+    repo.listAudit({ clientId: client ?? undefined, limit: 200 }),
     repo.listClients(),
   ]);
   const names = new Map(clients.map((c) => [c.id, c.name]));
+  const now = new Date();
+  const rows: HistoryRow[] = audit.map((r) => ({
+    id: r.id,
+    at: r.at.toISOString(),
+    atLabel: formatDateTime(r.at),
+    atRelative: daysAgo(r.at, now),
+    actor: r.actor,
+    action: r.action,
+    clientId: r.clientId ?? null,
+    clientName: r.clientId ? (names.get(r.clientId) ?? null) : null,
+    ip: r.ip ?? "",
+    details: detailPairs(r.details),
+  }));
+
   return (
-    <div className="stack">
-      <h1>History</h1>
-      <form className="row" method="get">
-        <label className="field">
-          Client
-          <select name="client" defaultValue={client ?? ""}>
-            <option value="">All clients</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button type="submit">Filter</Button>
-      </form>
-      <Card>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Actor</th>
-                <th>Action</th>
-                <th>Client</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{formatDateTime(r.at)}</td>
-                  <td>{r.actor}</td>
-                  <td>{r.action}</td>
-                  <td>
-                    {r.clientId ? (
-                      <Link href={`/bkpadmin/clients/${r.clientId}`}>
-                        {names.get(r.clientId) ?? r.clientId}
-                      </Link>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="muted">
-                    {r.details && Object.keys(r.details).length > 0
-                      ? JSON.stringify(r.details)
-                      : ""}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="muted">
-                    No history yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+    <div className="gx-stack">
+      <PageHeader
+        title="History"
+        subtitle="Sign-ins, codes and every change you make — latest 200 events."
+      />
+      <HistoryTable
+        rows={rows}
+        clients={clients
+          .map((c) => ({ id: c.id, name: c.name }))
+          .sort((a, b) => a.name.localeCompare(b.name))}
+        client={client}
+      />
     </div>
   );
 }

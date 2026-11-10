@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Button, Card } from "@bakvion/ui";
 import { isUuid } from "../../../../../lib/server/admin-service";
 import { serverEnv } from "../../../../../lib/server/env";
 import {
@@ -18,16 +17,47 @@ import {
   updateDetailsAction,
 } from "../../../actions";
 import {
+  daysAgo,
   formatDate,
   formatDateTime,
   istDateInput,
-  STATUS_TONE,
 } from "../../format";
+import { actionInfo } from "../../event-labels";
 import { CodeGenerator } from "./CodeGenerator";
-import { DevicesCard } from "./DevicesCard";
+import { DevicesCard, type DeviceRow } from "./DevicesCard";
 import { requireAdmin } from "../../../../../lib/server/admin-session";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  ConfirmForm,
+  Field,
+  Input,
+  Notice,
+  PageHeader,
+  PasswordInput,
+  StatusBadge,
+  Stepper,
+  Switch,
+  Textarea,
+} from "../../../ui";
 
 export const dynamic = "force-dynamic";
+
+function remaining(expiresAt: Date, now: Date): { big: string; small: string } {
+  if (expiresAt.getTime() >= now.getTime()) {
+    const n = daysLeft(expiresAt, now);
+    return n <= 1
+      ? { big: "Today", small: "ends tonight" }
+      : { big: String(n), small: "days left" };
+  }
+  const n = Math.floor((now.getTime() - expiresAt.getTime()) / 86_400_000);
+  return {
+    big: String(Math.max(n, 0)),
+    small: n === 1 ? "day expired" : "days expired",
+  };
+}
 
 export default async function ClientPage({
   params,
@@ -45,186 +75,308 @@ export default async function ClientPage({
   if (!client) notFound();
   const [devices, history, clients] = await Promise.all([
     repo.listDevices(id),
-    repo.listAudit({ clientId: id, limit: 20 }),
+    repo.listAudit({ clientId: id, limit: 8 }),
     repo.listClients(),
   ]);
-  const username = clients.find((c) => c.id === id)?.username ?? null;
+  const summary = clients.find((c) => c.id === id);
+  const username = summary?.username ?? null;
   const now = new Date();
   const status = membershipStatus(client, now);
+  const left = remaining(client.expiresAt, now);
+  const deviceRows: DeviceRow[] = devices
+    .filter((d) => d.removedAt === null)
+    .map((d) => ({
+      id: d.id,
+      machineName: d.machineName,
+      windowsVersion: d.windowsVersion,
+      appVersion: d.appVersion,
+      mode: d.mode,
+      lastSeenAt: d.lastSeenAt.toISOString(),
+      lastSeenLabel: daysAgo(d.lastSeenAt, now),
+    }));
+  const pcsUsed = deviceRows.filter((d) => d.mode === "full").length;
 
   return (
-    <div className="stack">
-      <div className="row spread">
-        <h1>
-          {client.name} {client.isTest ? <Badge>Test</Badge> : null}
-        </h1>
-        <Badge tone={STATUS_TONE[status]}>{status}</Badge>
-      </div>
-      {error ? <div className="error">{error}</div> : null}
-      {ok ? <div className="notice">{ok}</div> : null}
+    <div className="gx-stack">
+      <Notice ok={ok} error={error} />
+      <PageHeader
+        back={{ href: "/bkpadmin", label: "Clients" }}
+        title={client.name}
+        meta={
+          <>
+            <StatusBadge status={status} />
+            {client.isTest ? <Badge tone="accent">Test</Badge> : null}
+          </>
+        }
+        subtitle={`Membership ends ${formatDate(client.expiresAt)} · ${pcsUsed} of ${client.pcLimit} PCs in use`}
+        actions={
+          <>
+            <ConfirmForm
+              action={blockAction}
+              fields={{ id, blocked: String(!client.blocked) }}
+              trigger={client.blocked ? "Unblock" : "Block"}
+              triggerVariant={client.blocked ? "secondary" : "danger"}
+              title={
+                client.blocked ? "Unblock this client?" : "Block this client?"
+              }
+              description={
+                client.blocked
+                  ? "Their PCs can back up again after their next sync."
+                  : "New backups stop on all their PCs at the next sync. Restoring existing backups keeps working."
+              }
+              confirmLabel={client.blocked ? "Unblock" : "Block client"}
+            />
+          </>
+        }
+      />
 
-      <Card className="stack">
-        <h2>Details</h2>
-        <form action={updateDetailsAction} className="stack">
-          <input type="hidden" name="id" value={id} />
-          <label className="field">
-            Name
-            <input name="name" defaultValue={client.name} required />
-          </label>
-          <label className="field">
-            Contact person
-            <input name="contactPerson" defaultValue={client.contactPerson} />
-          </label>
-          <label className="field">
-            Phone
-            <input name="phone" defaultValue={client.phone} />
-          </label>
-          <label className="field">
-            Notes
-            <textarea name="notes" defaultValue={client.notes} />
-          </label>
-          <label className="row">
-            <input
-              name="isTest"
-              type="checkbox"
-              defaultChecked={client.isTest}
-            />{" "}
-            Test client
-          </label>
-          <div>
-            <Button type="submit">Save details</Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card className="stack">
-        <h2>Membership</h2>
-        <p className="muted">
-          Ends {formatDate(client.expiresAt)} ({daysLeft(client.expiresAt, now)}{" "}
-          days left)
-        </p>
-        <form action={setExpiryAction} className="row">
-          <input type="hidden" name="id" value={id} />
-          <input
-            name="date"
-            type="date"
-            defaultValue={istDateInput(client.expiresAt)}
-            required
-          />
-          <Button type="submit">Set date</Button>
-        </form>
-        <div className="row">
-          {(
-            [
-              [1, "+1 month"],
-              [3, "+3 months"],
-              [12, "+1 year"],
-            ] as const
-          ).map(([months, label]) => (
-            <form key={months} action={extendAction}>
+      <div className="gx-detail-grid">
+        <div className="gx-stack">
+          <Card>
+            <CardHeader title="Business details" />
+            <form action={updateDetailsAction} className="gx-form">
               <input type="hidden" name="id" value={id} />
-              <input type="hidden" name="months" value={months} />
-              <Button type="submit" className="secondary">
-                {label}
-              </Button>
+              <div className="gx-grid-2">
+                <Field label="Business name" htmlFor="d-name" required>
+                  <Input
+                    id="d-name"
+                    name="name"
+                    defaultValue={client.name}
+                    required
+                    maxLength={200}
+                  />
+                </Field>
+                <Field label="Contact person" htmlFor="d-contact">
+                  <Input
+                    id="d-contact"
+                    name="contactPerson"
+                    defaultValue={client.contactPerson}
+                    maxLength={200}
+                  />
+                </Field>
+                <Field label="Phone (WhatsApp)" htmlFor="d-phone">
+                  <Input
+                    id="d-phone"
+                    name="phone"
+                    type="tel"
+                    defaultValue={client.phone}
+                    maxLength={40}
+                  />
+                </Field>
+                <div className="gx-field gx-field--switch">
+                  <span className="gx-label">Account type</span>
+                  <Switch
+                    name="isTest"
+                    label="Test client"
+                    defaultChecked={client.isTest}
+                  />
+                </div>
+                <Field
+                  label="Notes"
+                  htmlFor="d-notes"
+                  className="gx-grid-2__full"
+                >
+                  <Textarea
+                    id="d-notes"
+                    name="notes"
+                    rows={2}
+                    defaultValue={client.notes}
+                    maxLength={2000}
+                  />
+                </Field>
+              </div>
+              <div className="gx-form__actions">
+                <Button type="submit">Save details</Button>
+              </div>
             </form>
-          ))}
-        </div>
-        <form action={pcLimitAction} className="row">
-          <input type="hidden" name="id" value={id} />
-          <label className="field">
-            PC limit
-            <input
-              name="pcLimit"
-              type="number"
-              min={1}
-              max={100}
-              defaultValue={client.pcLimit}
-              required
-            />
-          </label>
-          <Button type="submit">Save limit</Button>
-        </form>
-      </Card>
+          </Card>
 
-      <Card className="stack">
-        <h2>Sign-in</h2>
-        <p className="muted">Username: {username ?? "not set"}</p>
-        <form action={credentialsAction} className="stack">
-          <input type="hidden" name="id" value={id} />
-          <label className="field">
-            Username
-            <input
-              name="username"
-              defaultValue={username ?? ""}
-              autoComplete="off"
-              required
+          <Card>
+            <CardHeader
+              title="Sign-in"
+              description="How the client signs in to the Bakvion app on their PC."
             />
-          </label>
-          <label className="field">
-            New password (min 8 characters)
-            <input
-              name="password"
-              type="password"
-              minLength={8}
-              autoComplete="new-password"
-              required
-            />
-          </label>
-          <div>
-            <Button type="submit">Save login</Button>
-          </div>
-        </form>
-        <CodeGenerator clientId={id} />
-      </Card>
+            <form action={credentialsAction} className="gx-form">
+              <input type="hidden" name="id" value={id} />
+              <div className="gx-grid-2">
+                <Field
+                  label="Username"
+                  htmlFor="s-user"
+                  hint={username ? `Current: ${username}` : "Not set yet"}
+                >
+                  <Input
+                    id="s-user"
+                    name="username"
+                    defaultValue={username ?? ""}
+                    autoComplete="off"
+                    required
+                    minLength={3}
+                    maxLength={64}
+                    pattern="[A-Za-z0-9._\-]{3,64}"
+                    aria-describedby="s-user-hint"
+                  />
+                </Field>
+                <Field
+                  label="New password"
+                  htmlFor="s-pass"
+                  hint="At least 8 characters."
+                >
+                  <PasswordInput
+                    id="s-pass"
+                    name="password"
+                    minLength={8}
+                    autoComplete="new-password"
+                    required
+                    aria-describedby="s-pass-hint"
+                  />
+                </Field>
+              </div>
+              <div className="gx-form__actions">
+                <Button type="submit">
+                  {username ? "Update login" : "Save login"}
+                </Button>
+              </div>
+            </form>
+            <hr className="gx-divider" />
+            <CodeGenerator clientId={id} />
+          </Card>
 
-      <DevicesCard clientId={id} devices={devices} now={now} />
-
-      <Card className="row">
-        <form action={blockAction}>
-          <input type="hidden" name="id" value={id} />
-          <input type="hidden" name="blocked" value={String(!client.blocked)} />
-          <Button
-            type="submit"
-            className={client.blocked ? undefined : "danger"}
+          <section
+            className="gx-stack gx-stack--tight"
+            aria-labelledby="pcs-title"
           >
-            {client.blocked ? "Unblock" : "Block"}
-          </Button>
-        </form>
-        {client.isTest ? (
-          <form action={deleteClientAction}>
-            <input type="hidden" name="id" value={id} />
-            <Button type="submit" className="danger">
-              Delete test client
-            </Button>
-          </form>
-        ) : null}
-      </Card>
+            <div className="gx-section-head">
+              <h2 id="pcs-title" className="gx-card-header__title">
+                PCs
+              </h2>
+              <span className="gx-muted">
+                {pcsUsed} of {client.pcLimit} slots used
+              </span>
+            </div>
+            <DevicesCard clientId={id} devices={deviceRows} />
+          </section>
+        </div>
 
-      <Card className="stack">
-        <div className="row spread">
-          <h2>Recent history</h2>
-          <Link href={`/bkpadmin/history?client=${id}`}>See all</Link>
+        <div className="gx-stack">
+          <Card>
+            <CardHeader
+              title="Membership"
+              description="Dates are in India time."
+            />
+            <div className="gx-countdown" data-status={status}>
+              <span className="gx-countdown__big">{left.big}</span>
+              <span className="gx-countdown__small">{left.small}</span>
+              <span className="gx-countdown__date">
+                Ends {formatDate(client.expiresAt)}
+              </span>
+            </div>
+            <div className="gx-form">
+              <div>
+                <p className="gx-label gx-mb">Extend</p>
+                <div className="gx-btn-group">
+                  {(
+                    [
+                      [1, "+1 month"],
+                      [3, "+3 months"],
+                      [12, "+1 year"],
+                    ] as const
+                  ).map(([months, label]) => (
+                    <form key={months} action={extendAction}>
+                      <input type="hidden" name="id" value={id} />
+                      <input type="hidden" name="months" value={months} />
+                      <Button type="submit" variant="secondary" size="sm">
+                        {label}
+                      </Button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+              <form action={setExpiryAction} className="gx-inline-form">
+                <input type="hidden" name="id" value={id} />
+                <Field label="Or set an exact end date" htmlFor="m-date">
+                  <Input
+                    id="m-date"
+                    name="date"
+                    type="date"
+                    defaultValue={istDateInput(client.expiresAt)}
+                    required
+                  />
+                </Field>
+                <Button type="submit" variant="secondary">
+                  Set date
+                </Button>
+              </form>
+              <form action={pcLimitAction} className="gx-inline-form">
+                <input type="hidden" name="id" value={id} />
+                <Field label="PC limit" htmlFor="m-pcs">
+                  <Stepper
+                    id="m-pcs"
+                    name="pcLimit"
+                    defaultValue={client.pcLimit}
+                  />
+                </Field>
+                <Button type="submit" variant="secondary">
+                  Save
+                </Button>
+              </form>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Recent activity"
+              actions={
+                <Link
+                  href={`/bkpadmin/history?client=${id}`}
+                  className="gx-link gx-small"
+                >
+                  See all
+                </Link>
+              }
+            />
+            {history.length ? (
+              <ol className="gx-timeline">
+                {history.map((r) => {
+                  const info = actionInfo(r.action);
+                  return (
+                    <li key={r.id} className="gx-timeline__item">
+                      <span
+                        className={`gx-timeline__dot gx-timeline__dot--${info.tone}`}
+                        aria-hidden="true"
+                      />
+                      <div className="gx-cell-main">
+                        <span className="gx-strong">{info.label}</span>
+                        <span className="gx-cell-sub">
+                          {formatDateTime(r.at)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <p className="gx-muted">Nothing yet.</p>
+            )}
+          </Card>
+
+          {client.isTest ? (
+            <Card className="gx-danger-zone">
+              <CardHeader
+                title="Delete test client"
+                description="Removes this test client, its login, codes and PCs. Real clients can't be deleted."
+              />
+              <ConfirmForm
+                action={deleteClientAction}
+                fields={{ id }}
+                trigger="Delete test client"
+                title="Delete this test client?"
+                description="This permanently removes the client, its login, codes, PCs and history links."
+                confirmLabel="Delete"
+              />
+            </Card>
+          ) : null}
         </div>
-        <div className="table-wrap">
-          <table>
-            <tbody>
-              {history.map((r) => (
-                <tr key={r.id}>
-                  <td>{formatDateTime(r.at)}</td>
-                  <td>{r.actor}</td>
-                  <td>{r.action}</td>
-                </tr>
-              ))}
-              {history.length === 0 ? (
-                <tr>
-                  <td className="muted">No history yet.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -71,11 +71,19 @@ async function mutateClient(
   redirect(target);
 }
 
-export async function createClientAction(formData: FormData): Promise<void> {
+export interface FormState {
+  error: string | null;
+}
+
+/** New-client dialog: errors stay in the dialog; success opens the client page. */
+export async function createClientFormAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   await requireAdmin();
-  let target: string;
+  let id: string;
   try {
-    const id = await createClientAccount(
+    id = await createClientAccount(
       createSupabaseRepo(serverEnv()),
       {
         name: text(formData, "name"),
@@ -88,12 +96,11 @@ export async function createClientAction(formData: FormData): Promise<void> {
       },
       new Date(),
     );
-    revalidatePath("/bkpadmin", "layout");
-    target = clientPath(id, { ok: "Client created" });
   } catch (err) {
-    target = `/bkpadmin/clients/new?${new URLSearchParams({ error: message(err) })}`;
+    return { error: message(err) };
   }
-  redirect(target);
+  revalidatePath("/bkpadmin", "layout");
+  redirect(clientPath(id, { ok: "Client created" }));
 }
 
 export async function updateDetailsAction(formData: FormData): Promise<void> {

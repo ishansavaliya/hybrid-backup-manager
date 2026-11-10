@@ -1,44 +1,70 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@bakvion/ui";
+import { KeyRound } from "lucide-react";
 import { issueCodeAction, type CodeState } from "../../../actions";
 import { CopyButton } from "../../CopyButton";
+import { Button, Notice } from "../../../ui";
 
 const initial: CodeState = { error: null };
+
+const EXPIRY = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "2-digit",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
 
 export function CodeGenerator({ clientId }: { clientId: string }) {
   const [state, action, pending] = useActionState(issueCodeAction, initial);
   return (
-    <div className="stack">
-      <form action={action}>
-        <input type="hidden" name="id" value={clientId} />
-        <Button type="submit" disabled={pending}>
-          Generate 6-digit code
-        </Button>
-      </form>
-      {state.error ? <div className="error">{state.error}</div> : null}
+    <div className="gx-code">
+      <div className="gx-code__intro">
+        <div>
+          <p className="gx-label">6-digit sign-in code</p>
+          <p className="gx-hint">
+            Works once, for 48 hours. Send it on WhatsApp; the client types it
+            in the Bakvion app.
+          </p>
+        </div>
+        <form action={action}>
+          <input type="hidden" name="id" value={clientId} />
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={pending}
+            aria-busy={pending}
+          >
+            <KeyRound size={16} aria-hidden="true" />
+            {pending
+              ? "Generating…"
+              : state.code
+                ? "New code"
+                : "Generate code"}
+          </Button>
+        </form>
+      </div>
+      {state.error ? <Notice error={state.error} variant="inline" /> : null}
       {state.code ? (
-        <div className="stack">
-          <div className="notice">
-            Shown once. It is not stored in readable form, so copy it now.
+        <div className="gx-code__result">
+          <div className="gx-code__digits" aria-label={`Code ${state.code}`}>
+            <span>{state.code.slice(0, 3)}</span>
+            <span>{state.code.slice(3)}</span>
           </div>
-          <strong style={{ fontSize: 28, letterSpacing: 4 }}>
-            {state.code}
-          </strong>
-          <span className="muted">
-            Expires{" "}
-            {new Date(state.expiresAt ?? "").toLocaleString("en-IN", {
-              timeZone: "Asia/Kolkata",
-            })}{" "}
-            IST
-          </span>
-          <label className="field">
-            WhatsApp message
-            <textarea readOnly value={state.whatsappText} />
-          </label>
-          <div>
-            <CopyButton text={state.whatsappText ?? ""} />
+          <p className="gx-hint">
+            Expires {EXPIRY.format(new Date(state.expiresAt ?? ""))} India time
+            · shown only now, copy it before leaving this page.
+          </p>
+          <div className="gx-code__message">{state.whatsappText}</div>
+          <div className="gx-code__actions">
+            <CopyButton text={state.code} label="Copy code" />
+            <CopyButton
+              text={state.whatsappText ?? ""}
+              label="Copy for WhatsApp"
+              variant="primary"
+            />
           </div>
         </div>
       ) : null}

@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Badge, Button, Card } from "@bakvion/ui";
+import { Suspense } from "react";
 import {
   filterClients,
   type ClientFilter,
@@ -7,120 +6,86 @@ import {
 import { serverEnv } from "../../../lib/server/env";
 import { daysLeft, membershipStatus } from "../../../lib/server/membership";
 import { createSupabaseRepo } from "../../../lib/server/repo-supabase";
-import { formatDate, formatDateTime, STATUS_TONE } from "./format";
 import { requireAdmin } from "../../../lib/server/admin-session";
+import { daysAgo, formatDate } from "./format";
+import { PageHeader } from "../ui";
+import {
+  ClientsTable,
+  type ClientFilterKey,
+  type ClientRow,
+} from "./ClientsTable";
+import { NewClientDialog } from "./NewClientDialog";
 
 export const dynamic = "force-dynamic";
 
-const FILTERS: { key: ClientFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "expiring", label: "Expiring" },
-  { key: "expired", label: "Expired" },
-  { key: "blocked", label: "Blocked" },
-  { key: "test", label: "Test" },
-];
+const FILTER_KEYS: ClientFilter[] = ["expiring", "expired", "blocked", "test"];
+
+function expiresHint(expiresAt: Date, now: Date): string {
+  const left = daysLeft(expiresAt, now);
+  if (expiresAt.getTime() >= now.getTime()) {
+    if (left <= 1) return "Ends today";
+    return `${left} days left`;
+  }
+  const ago = Math.floor((now.getTime() - expiresAt.getTime()) / 86_400_000);
+  return ago <= 0
+    ? "Expired today"
+    : ago === 1
+      ? "Expired 1 day ago"
+      : `Expired ${ago} days ago`;
+}
 
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   await requireAdmin();
-  const params = await searchParams;
-  const q = params.q ?? "";
-  const filter = FILTERS.some((f) => f.key === params.filter)
-    ? (params.filter as ClientFilter)
+  const { filter } = await searchParams;
+  const initialFilter: ClientFilterKey = FILTER_KEYS.includes(
+    filter as ClientFilter,
+  )
+    ? (filter as ClientFilterKey)
     : "all";
   const now = new Date();
-  const clients = filterClients(
-    await createSupabaseRepo(serverEnv()).listClients(),
-    q,
-    filter,
-    now,
+  const list = await createSupabaseRepo(serverEnv()).listClients();
+  const membership = new Map(
+    FILTER_KEYS.map((k) => [
+      k,
+      new Set(filterClients(list, "", k, now).map((c) => c.id)),
+    ]),
   );
+  const rows: ClientRow[] = list.map((c) => ({
+    id: c.id,
+    name: c.name,
+    contactPerson: c.contactPerson,
+    phone: c.phone,
+    username: c.username ?? "",
+    isTest: c.isTest,
+    status: membershipStatus(c, now),
+    expiresAt: c.expiresAt.toISOString(),
+    expiresLabel: formatDate(c.expiresAt),
+    expiresHint: expiresHint(c.expiresAt, now),
+    pcsUsed: c.pcsUsed,
+    pcLimit: c.pcLimit,
+    lastSeenAt: c.lastSeenAt ? c.lastSeenAt.toISOString() : null,
+    lastSeenLabel: c.lastSeenAt ? daysAgo(c.lastSeenAt, now) : "Never",
+    filters: FILTER_KEYS.filter((k) =>
+      membership.get(k)?.has(c.id),
+    ) as ClientFilterKey[],
+  }));
+
   return (
-    <div className="stack">
-      <div className="row spread">
-        <h1>Clients</h1>
-        <Link href="/bkpadmin/clients/new">
-          <Button type="button">New client</Button>
-        </Link>
-      </div>
-      <form className="row" method="get">
-        <input
-          className="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search name, phone or username"
-          style={{ maxWidth: 320 }}
-        />
-        <input type="hidden" name="filter" value={filter} />
-        <Button type="submit">Search</Button>
-      </form>
-      <div className="row">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={`/bkpadmin?${new URLSearchParams({ ...(q ? { q } : {}), filter: f.key })}`}
-          >
-            <Badge tone={f.key === filter ? "success" : "neutral"}>
-              {f.label}
-            </Badge>
-          </Link>
-        ))}
-      </div>
-      <Card>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Status</th>
-                <th>Expires</th>
-                <th>PCs</th>
-                <th>Last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => {
-                const status = membershipStatus(c, now);
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <Link href={`/bkpadmin/clients/${c.id}`}>{c.name}</Link>
-                      {c.isTest ? <Badge>Test</Badge> : null}
-                    </td>
-                    <td>{c.phone}</td>
-                    <td>
-                      <Badge tone={STATUS_TONE[status]}>{status}</Badge>
-                    </td>
-                    <td>
-                      {formatDate(c.expiresAt)}
-                      <div className="muted">
-                        {daysLeft(c.expiresAt, now)} days left
-                      </div>
-                    </td>
-                    <td>
-                      {c.pcsUsed}/{c.pcLimit}
-                    </td>
-                    <td>
-                      {c.lastSeenAt ? formatDateTime(c.lastSeenAt) : "Never"}
-                    </td>
-                  </tr>
-                );
-              })}
-              {clients.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="muted">
-                    No clients match.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+    <div className="gx-stack">
+      <PageHeader
+        title="Clients"
+        subtitle="Businesses using Bakvion, their membership and PCs."
+        actions={
+          <Suspense>
+            <NewClientDialog />
+          </Suspense>
+        }
+      />
+      <ClientsTable rows={rows} initialFilter={initialFilter} />
     </div>
   );
 }

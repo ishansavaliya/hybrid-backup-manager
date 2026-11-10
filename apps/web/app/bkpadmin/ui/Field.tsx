@@ -1,6 +1,7 @@
 import type {
   InputHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
@@ -69,7 +70,7 @@ export function Field({
 export function Input({
   className,
   ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
+}: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input className={cx("gx-input", className)} {...props} />;
 }
 

@@ -9,21 +9,24 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bakvion/ui": "workspace:*",
     "@bakvion/shared-types": "workspace:*",
+    "@bakvion/ui": "workspace:*",
+    "@radix-ui/react-dialog": "^1.3.1",
+    "@radix-ui/react-select": "^2.4.1",
     "@supabase/supabase-js": "^2.80.0",
+    "@tanstack/react-table": "^8.21.3",
+    "lucide-react": "^0.468.0",
     "next": "^16.0.10",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "lucide-react": "^0.468.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
+    "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@tailwindcss/postcss": "^4.1.17",
     "tailwindcss": "^4.1.17",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
 }

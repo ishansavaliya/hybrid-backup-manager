@@ -1,66 +1,98 @@
-import { Badge, Button, Card } from "@bakvion/ui";
-import type { DeviceRecord } from "../../../../../lib/server/repo";
+"use client";
+
+import { createColumnHelper } from "@tanstack/react-table";
+import { Monitor } from "lucide-react";
 import { removeDeviceAction } from "../../../actions";
-import { daysAgo } from "../../format";
+import { Badge, ConfirmForm, DataTable } from "../../../ui";
+
+export interface DeviceRow {
+  id: string;
+  machineName: string;
+  windowsVersion: string;
+  appVersion: string;
+  mode: "full" | "restore_only";
+  lastSeenAt: string;
+  lastSeenLabel: string;
+}
+
+const col = createColumnHelper<DeviceRow>();
+
+function columns(clientId: string) {
+  return [
+    col.accessor("machineName", {
+      header: "PC",
+      cell: (c) => (
+        <div className="gx-cell-icon">
+          <span className="gx-cell-icon__box" aria-hidden="true">
+            <Monitor size={15} />
+          </span>
+          <div className="gx-cell-main">
+            <span className="gx-strong">{c.getValue() || "Unnamed PC"}</span>
+            <span className="gx-cell-sub">
+              {c.row.original.windowsVersion || "Windows"} · v
+              {c.row.original.appVersion || "?"}
+            </span>
+          </div>
+        </div>
+      ),
+    }),
+    col.accessor("mode", {
+      header: "Mode",
+      cell: (c) =>
+        c.getValue() === "full" ? (
+          <Badge tone="success" dot>
+            Active
+          </Badge>
+        ) : (
+          <Badge tone="warning" dot>
+            Restore only
+          </Badge>
+        ),
+    }),
+    col.accessor("lastSeenAt", {
+      header: "Last seen",
+      cell: (c) => c.row.original.lastSeenLabel,
+    }),
+    col.display({
+      id: "remove",
+      header: () => <span className="gx-sr-only">Actions</span>,
+      cell: (c) => (
+        <div className="gx-cell-end">
+          <ConfirmForm
+            action={removeDeviceAction}
+            fields={{ id: clientId, deviceId: c.row.original.id }}
+            trigger="Remove"
+            triggerVariant="ghost"
+            size="sm"
+            title="Remove this PC?"
+            description="It is signed out the next time it connects and frees a PC slot. Its local backups and settings stay on the PC."
+            confirmLabel="Remove PC"
+          />
+        </div>
+      ),
+    }),
+  ];
+}
 
 export function DevicesCard({
   clientId,
   devices,
-  now,
 }: {
   clientId: string;
-  devices: DeviceRecord[];
-  now: Date;
+  devices: DeviceRow[];
 }) {
-  const live = devices.filter((d) => d.removedAt === null);
   return (
-    <Card className="stack">
-      <h2>PCs</h2>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Machine</th>
-              <th>Windows</th>
-              <th>App version</th>
-              <th>Mode</th>
-              <th>Last seen</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {live.map((d) => (
-              <tr key={d.id}>
-                <td>{d.machineName}</td>
-                <td>{d.windowsVersion}</td>
-                <td>{d.appVersion}</td>
-                <td>
-                  <Badge tone={d.mode === "full" ? "success" : "warning"}>
-                    {d.mode === "full" ? "Full" : "Restore only"}
-                  </Badge>
-                </td>
-                <td>{daysAgo(d.lastSeenAt, now)}</td>
-                <td>
-                  <form action={removeDeviceAction}>
-                    <input type="hidden" name="id" value={clientId} />
-                    <input type="hidden" name="deviceId" value={d.id} />
-                    <Button type="submit" className="danger">
-                      Remove
-                    </Button>
-                  </form>
-                </td>
-              </tr>
-            ))}
-            {live.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="muted">
-                  No PCs signed in.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <DataTable
+      label="PCs"
+      columns={columns(clientId)}
+      data={devices}
+      initialSort={[{ id: "lastSeenAt", desc: true }]}
+      pageSize={10}
+      empty={{
+        title: "No PCs yet",
+        description:
+          "PCs appear here after the client signs in to the Bakvion app.",
+      }}
+    />
   );
 }

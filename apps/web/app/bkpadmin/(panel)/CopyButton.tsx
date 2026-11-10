@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@bakvion/ui";
+import { useState, type ReactNode } from "react";
+import { Check, Copy } from "lucide-react";
+import { Button, type ButtonVariant } from "../ui/Button";
 
-export function CopyButton({ text }: { text: string }) {
+export function CopyButton({
+  text,
+  label = "Copy",
+  variant = "secondary",
+}: {
+  text: string;
+  label?: ReactNode;
+  variant?: ButtonVariant;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
-      type="button"
-      className="secondary"
+      variant={variant}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -19,7 +27,12 @@ export function CopyButton({ text }: { text: string }) {
         }
       }}
     >
-      {copied ? "Copied" : "Copy"}
+      {copied ? (
+        <Check size={16} aria-hidden="true" />
+      ) : (
+        <Copy size={16} aria-hidden="true" />
+      )}
+      {copied ? "Copied" : label}
     </Button>
   );
 }
