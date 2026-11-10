@@ -394,6 +394,16 @@ export function createSupabaseRepo(env: ServerEnv): Repo {
       return data?.length ?? 0;
     },
 
+    async pruneRateLimits(olderThan) {
+      const { data, error } = await db
+        .from("rate_limits")
+        .delete()
+        .lt("window_start", iso(olderThan))
+        .select("key");
+      if (error) fail("pruneRateLimits", error);
+      return data?.length ?? 0;
+    },
+
     async ping() {
       const { error } = await db.from("settings").select("key").limit(1);
       if (error) fail("ping", error);

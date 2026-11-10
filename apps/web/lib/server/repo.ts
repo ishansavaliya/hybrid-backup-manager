@@ -120,6 +120,7 @@ export interface Repo {
   listDevices(clientId: string): Promise<DeviceRecord[]>;
   removeDevice(deviceId: string, now: Date): Promise<void>;
   pruneAudit(olderThan: Date): Promise<number>;
+  pruneRateLimits(olderThan: Date): Promise<number>;
   ping(): Promise<void>;
 }
 

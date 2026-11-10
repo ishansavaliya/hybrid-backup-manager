@@ -355,6 +355,17 @@ export function createMemoryRepo(seed?: {
       return n;
     },
 
+    async pruneRateLimits(olderThan) {
+      let n = 0;
+      for (const [key, row] of limits) {
+        if (row.windowStart.getTime() < olderThan.getTime()) {
+          limits.delete(key);
+          n++;
+        }
+      }
+      return n;
+    },
+
     async ping() {},
   };
 }
