@@ -10,6 +10,7 @@ import {
 import type { Plan, Snapshot, SnapshotNode } from "@bakvion/shared-types";
 import { GxDialog, GxSelect } from "@bakvion/ui/gx";
 import { choose, request } from "../api";
+import { DatePicker, localDay } from "../DatePicker";
 import { format, useI18n } from "../i18n";
 import {
   Button,
@@ -72,7 +73,9 @@ export function Restore({
     notify(format(r.done, { n: result.verifiedFiles, target }));
   }
 
-  const shown = snapshots.filter((s) => !day || s.time.slice(0, 10) === day);
+  // Calendar days in this PC's time zone (a 1:00 AM IST backup is that day).
+  const backupDays = new Set(snapshots.map((s) => localDay(s.time)));
+  const shown = snapshots.filter((s) => !day || localDay(s.time) === day);
   return (
     <div className="gx-stack">
       <Card>
@@ -142,11 +145,12 @@ export function Restore({
             {r.find}
           </Button>
           <Field label={r.date} htmlFor="rs-day">
-            <Input
+            <DatePicker
               id="rs-day"
-              type="date"
               value={day}
-              onChange={(e) => setDay(e.target.value)}
+              onChange={setDay}
+              marked={backupDays}
+              disabled={!snapshots.length}
             />
           </Field>
         </div>

@@ -51,6 +51,8 @@ interface I18n {
   daysAgo: (n: number) => string;
   /** Short weekday names, index 0 = Sunday. */
   weekdays: string[];
+  /** BCP 47 locale of the chosen language, e.g. "gu-IN". */
+  locale: string;
 }
 
 const Ctx = createContext<I18n | null>(null);
@@ -100,6 +102,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       days: (n) =>
         n === 1 ? t.membership.day : format(t.membership.days, { n }),
       weekdays,
+      locale,
     };
   }, [lang, setLang]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

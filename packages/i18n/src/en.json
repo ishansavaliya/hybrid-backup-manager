@@ -326,7 +326,12 @@
       "openChoose": "Choose folder",
       "openKey": "Key from the recovery kit",
       "openSubmit": "Open backup",
-      "openOk": "Backup opened. Choose it above to restore files."
+      "openOk": "Backup opened. Choose it above to restore files.",
+      "anyDate": "Any date",
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "clearDate": "Clear date",
+      "pickDate": "Choose a date"
     },
     "history": {
       "title": "History",

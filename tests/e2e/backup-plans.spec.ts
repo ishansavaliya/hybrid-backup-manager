@@ -43,6 +43,7 @@ async function mock(
     drive?: { path: string; mode: string }[];
     appVersion?: string;
     update?: Record<string, unknown>;
+    snapshots?: unknown[];
   },
 ) {
   await page.addInitScript(
@@ -114,6 +115,8 @@ async function mock(
                     }
                   : o.update,
             };
+          if (method === "snapshots")
+            return { version: 1, result: o.snapshots ?? [] };
           if (method === "findGoogleDrive")
             return { version: 1, result: { folders: o.drive ?? [] } };
           if (method === "reportSettings")
@@ -591,4 +594,66 @@ test("deleting a plan asks first and keeps backups", async ({ page }) => {
   await expect(
     page.getByText("Plan deleted. Its backups are still on the disk."),
   ).toBeVisible();
+});
+
+test.describe("restore date picker", () => {
+  test.use({ timezoneId: "Asia/Kolkata" });
+
+  test("only days with backups can be picked, in local time", async ({
+    page,
+  }) => {
+    await mock(page, {
+      plans: [plan],
+      snapshots: [
+        // 2:00 AM IST on 10 Nov is still 9 Nov in UTC.
+        {
+          id: "aaaa1111bbbb2222",
+          time: "2026-11-09T20:30:00Z",
+          paths: [],
+          hostname: "PC",
+        },
+        {
+          id: "cccc3333dddd4444",
+          time: "2026-11-12T06:00:00Z",
+          paths: [],
+          hostname: "PC",
+        },
+      ],
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Restore", exact: true }).click();
+    const picker = page.locator("#rs-day");
+    await expect(picker).toBeDisabled();
+    await page.getByRole("combobox", { name: "Backup plan" }).click();
+    await page.getByRole("option", { name: "Documents" }).click();
+    await page.getByRole("combobox", { name: "Destination" }).click();
+    await page.getByRole("option", { name: "Office SSD" }).click();
+    await page.getByRole("button", { name: "Find backups" }).click();
+    await expect(page.getByText("aaaa1111bbbb")).toBeVisible();
+    await expect(page.getByText("cccc3333dddd")).toBeVisible();
+
+    await picker.click();
+    const cal = page.getByRole("dialog", { name: "Choose a date" });
+    await expect(cal.getByText("November 2026")).toBeVisible();
+    await expect(
+      cal.getByRole("button", { name: /(^|\s)9 November/ }),
+    ).toBeDisabled();
+    await expect(
+      cal.getByRole("button", { name: /(^|\s)11 November/ }),
+    ).toBeDisabled();
+    await cal.getByRole("button", { name: /(^|\s)10 November/ }).click();
+    await expect(cal).toBeHidden();
+    await expect(page.getByText("aaaa1111bbbb")).toBeVisible();
+    await expect(page.getByText("cccc3333dddd")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Clear date" }).click();
+    await expect(page.getByText("cccc3333dddd")).toBeVisible();
+
+    // Keyboard: Escape closes.
+    await picker.click();
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "Choose a date" }),
+    ).toBeHidden();
+  });
 });
