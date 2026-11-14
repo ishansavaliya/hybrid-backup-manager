@@ -13,7 +13,7 @@ import (
 type Updater interface {
 	Latest(context.Context) (update.Manifest, error)
 	Download(context.Context, update.Manifest) (string, error)
-	Launch(installer string) error
+	Launch(installer, sha256 string) error
 }
 
 // Update cadence; variables so tests can shorten them.
@@ -119,7 +119,7 @@ func (a *Agent) CheckForUpdate(ctx context.Context, install bool) (UpdateStatus,
 		return a.UpdateStatus()
 	}
 	_ = a.setSetting("update_installing", m.Version+"@"+stamp())
-	if err = a.Updater.Launch(path); err != nil {
+	if err = a.Updater.Launch(path, m.SHA256); err != nil {
 		_ = a.setSetting("update_installing", "")
 		_ = a.setSetting("update_error", "The update could not start. It will try again later.")
 	}

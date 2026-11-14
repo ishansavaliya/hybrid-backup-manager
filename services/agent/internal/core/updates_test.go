@@ -19,7 +19,7 @@ func (f *fakeUpdater) Latest(context.Context) (update.Manifest, error) { return 
 func (f *fakeUpdater) Download(_ context.Context, m update.Manifest) (string, error) {
 	return "C:/ProgramData/Bakvion/updates/Bakvion-Setup-" + m.Version + ".exe", nil
 }
-func (f *fakeUpdater) Launch(p string) error { f.launched = append(f.launched, p); return nil }
+func (f *fakeUpdater) Launch(p, _ string) error { f.launched = append(f.launched, p); return nil }
 
 func TestUpdatesInstallOnlyNewerAndOnlyWhenIdle(t *testing.T) {
 	e := newAccountEnv(t)

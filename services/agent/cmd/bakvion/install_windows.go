@@ -30,11 +30,55 @@ func dataDir() string {
 	return filepath.Join(base, "Bakvion")
 }
 
+// trustedOwner: SYSTEM, Administrators or TrustedInstaller.
+func trustedOwner(sid *windows.SID) bool {
+	for _, t := range []windows.WELL_KNOWN_SID_TYPE{windows.WinLocalSystemSid, windows.WinBuiltinAdministratorsSid} {
+		if w, err := windows.CreateWellKnownSid(t); err == nil && sid.Equals(w) {
+			return true
+		}
+	}
+	return sid.String() == "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
+}
+
+// secureDir creates or takes over the data folder so only SYSTEM and
+// Administrators can use it. Any user may create folders in ProgramData, so a
+// folder that already exists is trusted only when SYSTEM or Administrators
+// own it and it is a real folder (not a link elsewhere); otherwise it is moved
+// aside, never used. The owner becomes Administrators and an OWNER RIGHTS ACE
+// removes the owner's implicit right to change permissions.
 func secureDir(dir string) error {
+	if info, err := os.Lstat(dir); err == nil {
+		suspicious := !info.IsDir()
+		if p, perr := windows.UTF16PtrFromString(dir); perr == nil {
+			if attrs, aerr := windows.GetFileAttributes(p); aerr == nil && attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+				suspicious = true
+			}
+		}
+		if !suspicious {
+			sd, serr := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+			if serr != nil {
+				return serr
+			}
+			owner, _, oerr := sd.Owner()
+			suspicious = oerr != nil || owner == nil || !trustedOwner(owner)
+		}
+		if suspicious {
+			aside := dir + ".untrusted-" + time.Now().UTC().Format("20060102-150405")
+			if err = os.Rename(dir, aside); err != nil {
+				return fmt.Errorf("an untrusted %s exists and could not be moved aside: %w", dir, err)
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	sd, err := windows.SecurityDescriptorFromString("D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+	sd, err := windows.SecurityDescriptorFromString("O:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;RC;;;OW)")
+	if err != nil {
+		return err
+	}
+	owner, _, err := sd.Owner()
 	if err != nil {
 		return err
 	}
@@ -43,7 +87,8 @@ func secureDir(dir string) error {
 		return err
 	}
 	return windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
+		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		owner, nil, dacl, nil)
 }
 
 func waitFor(s *mgr.Service, want svc.State, limit time.Duration) error {

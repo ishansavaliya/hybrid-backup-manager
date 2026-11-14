@@ -221,5 +221,5 @@ func matches(path string, m Manifest) (bool, error) {
 }
 
 // Launch starts the silent installer and returns without waiting: the
-// installer stops and replaces this service.
-func (c Client) Launch(installer string) error { return launch(installer) }
+// installer stops and replaces this service. The file must still match sha.
+func (c Client) Launch(installer, sha string) error { return launch(installer, sha) }
