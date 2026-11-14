@@ -1,26 +1,20 @@
-# Threat model — development milestone
+# Threat model
 
-## Assets and trust boundaries
+A local administrator is trusted: they can replace programs and read service memory. Everything below is about other people and other programs.
 
-Customer source data, encrypted restic archives, repository passwords, local paths, device authorization keys and management metadata are sensitive. The Windows service, desktop renderer, web browser, cloud account, repositories and physical drives are distinct trust boundaries. A compromised local administrator is outside the protection guarantee: they can replace executables and access service memory.
+| Threat                               | Protection                                                                                              | Remaining                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Stolen backup disk                   | restic encryption; keys are not on the disk                                                             | Keep the recovery kit away from the disk                      |
+| Stolen or copied PC data             | Keys sealed with DPAPI (machine scope) in a SYSTEM/Administrators-only folder                           | Local administrators can still read them                      |
+| Another Windows user on the PC       | Pipe open to signed-in users by owner decision; data folder private                                     | Any signed-in user can start restores (into new folders only) |
+| Squatted data folder                 | Installer takes ownership; untrusted or linked folders are moved aside                                  | Windows acceptance                                            |
+| Fake or tampered update              | Ed25519-signed manifest, size and SHA-256 check, file locked against changes until launch, no downgrade | Keep the signing key secret and backed up                     |
+| Compromised build tooling            | Actions pinned to commit SHAs; build job has no secrets; signing in a separate job                      | Review action updates before bumping pins                     |
+| Membership bypass by clock change    | Server-signed licence; clock high-water mark; restore-only on rollback                                  | Offline use until expiry is intended                          |
+| Stolen device token                  | Tokens hashed in the database; admin can remove the PC; sign-out revokes                                | —                                                             |
+| Report emails abused for spam        | Device token required; at most 3 addresses; 40 emails and 5 tests per PC per day; 120 requests per hour | —                                                             |
+| Admin panel brute force              | Postgres-backed rate limits; session cookie signed with a server secret                                 | Rotate the admin password that was shared in chat             |
+| Malicious backup contents on restore | Path checks, link and special-file rejection, staging, verification, new folder only                    | —                                                             |
+| Ransomware                           | Older encrypted versions are kept; cleanup never runs after a partial backup                            | A disconnected second copy is still advised                   |
 
-| Threat                        | Current protection                                                                   | Remaining work                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| Ransomware                    | Historical encrypted snapshots; no automatic deletion or sync mirroring              | Offline/immutable copy, least-privilege repository credentials, retention separation |
-| Lost device / stolen password | Restic encrypted contents and metadata; passwords outside SQLite/cloud               | Identity-scoped Windows credential protection, recovery enrollment, key rotation     |
-| Compromised cloud account     | No agent-cloud commands enabled; RLS read ownership                                  | Device enrollment, asymmetric signing, replay/expiry checks, scoped tokens           |
-| Unauthorized local caller     | Pipe owner/admin/SYSTEM DACL; remote clients rejected; SCM PID validation            | Real Windows positive/negative identity tests and IPC robustness review              |
-| Privilege escalation          | No shell execution or local HTTP control port; service account provisioning explicit | Restricted service token, ACL validation, safe installer and update verification     |
-| Malicious recovery tree       | Path checks, link/special-file rejection, new-directory staging and verification     | Reparse-point/TOCTOU review, Windows ACL fidelity, original-path overwrite policy    |
-| Repository corruption         | Restic authenticated data checks and actual corrupt-pack tests                       | Recovery drills, immutable replicas and failure-injection campaigns                  |
-| Sensitive diagnostics         | No restic stderr or secret output exposed by adapter; generic operation errors       | Structured redacted diagnostics, useful safe provider errors, log retention          |
-
-## Credential limitations
-
-This milestone uses private plaintext password files by explicit development convention. They are never placed in database rows; only file references are stored locally. Unix file modes are checked. Windows ACL enforcement and identity-protected secret enrollment are not implemented. Do not call this production-grade credential storage. Account sign-in tokens use Supabase browser session storage and must never grant filesystem access.
-
-## Operations
-
-Use a dedicated non-admin service identity with read access to chosen sources and write access only to repositories, its private state and staging destinations. Do not grant SYSTEM/admin backup execution merely to bypass locked-file problems. Administrators retain legitimate stop, uninstall and maintenance controls.
-
-Restic encryption does not prevent deletion by an account with repository write access. Keep a physically disconnected or independently immutable copy; test restoration with its credentials. Password loss is unrecoverable without another valid restic key/password. Do not claim ransomware immunity.
+Not protected: anything an administrator of the PC does; loss of both the PC and the recovery kit (backups cannot be decrypted without a key).

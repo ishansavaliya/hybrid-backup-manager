@@ -52,3 +52,16 @@ Provider-policy research is documented in architecture/STORAGE_PROVIDERS.md. No 
 ## Mac handoff — 9 November 2026
 
 Added root HANDOFF.md with architecture/status, historical test evidence, GitHub publishing context and a copyable continuation prompt; RUN_ON_MAC.md with source extraction, pinned-pnpm startup, optional Supabase configuration and troubleshooting. Packaged tracked source and both guides as a fresh ZIP. This documentation-only update does not establish macOS runtime acceptance or change application behavior. Archive integrity and required-file checks were executed; no new application test claims are made.
+
+## Status — 14 November 2026 (macOS, Apple M2)
+
+All planned features are implemented on branch `feat/accounts-membership`: accounts and membership (admin panel, codes, PC limits, offline expiry, restore-only), Graphite design in three languages, website and leads, B1 (schedules, cleanup, managed keys, recovery kit), B2 (email reports), B3 (VSS fallback, drive-letter changes, disk-full warning, Google Drive mirror folder), restore on a new PC, Project C (installer, service install, silent signed updates, versions, release workflow, About & updates), plan deletion and the Restore calendar.
+
+Executed on this Mac, all passing:
+
+- `go test ./...` in `services/agent` with real restic 0.19.1 (`BAKVION_TEST_RESTIC`), plus `go vet` for darwin and `GOOS=windows`.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`.
+- Web unit tests: 135; validation tests: 5; `pnpm test:database` (all migrations in embedded Postgres).
+- Desktop Playwright e2e: 34 tests (browser with a mocked service).
+
+Not executed: anything on Windows (installer, service, DPAPI, VSS, volume IDs, Drive for desktop, real update), the release workflow (runs on the first version tag), and hosted Supabase/Vercel checks beyond the owner's own use. See PRODUCTION_READINESS.md and operations/WINDOWS.md.

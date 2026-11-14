@@ -1,37 +1,39 @@
-# Architecture and implemented boundaries
+# Architecture
 
 ```mermaid
 flowchart LR
- Desktop[React / Tauri desktop] -->|Rust: SCM process validation| Pipe[Windows ACL named pipe]
- Pipe --> Agent[Go agent / Windows SCM service]
- CLI[Offline CLI] --> Engine[Restic adapter]
- Agent --> SQLite[(Private SQLite)]
- Agent --> Engine
- Engine --> Repository[(Customer local encrypted repository)]
- Web[Next.js dashboard] --> Auth[Supabase Auth]
- Web -->|Owner-scoped reads| PG[(Supabase metadata / RLS)]
+ App[Bakvion.exe<br/>Tauri + React] -->|named pipe, SCM-verified| Service[BakvionService.exe<br/>Go, LocalSystem]
+ Service --> DB[(agent.db<br/>SQLite, ProgramData)]
+ Service --> Restic[restic.exe]
+ Restic --> Repo[(Client's disk or<br/>Google Drive mirror folder)]
+ Service -->|HTTPS: sign-in, licence, reports| API[Next.js on Vercel<br/>/api/v1/device/*]
+ Service -->|HTTPS: latest.json + installer| Releases[(Public GitHub releases)]
+ API --> PG[(Supabase Postgres<br/>server-only, RLS)]
+ API --> SMTP[Gmail SMTP]
+ Admin[Admin browser /bkpadmin] --> API
+ Site[Website / , /hi, /gu] --> API
 ```
 
-There is no agent-cloud connection in this milestone. Device enrollment, signed commands and outbox reconciliation are future work. The database contains an outbox table but no sync worker. The web app cannot scan local drives, run shell commands or request raw filesystem paths.
+## Desktop app
 
-## Agent
+React screens (Overview, Backup plans, Restore, History, Settings) in Tauri 2. Every action is a JSON request to the service through `\\.\pipe\Bakvion.v1`; the Rust side checks the pipe server is the registered `BakvionService` process. The app holds no keys and no data; closing it never stops backups.
 
-Go owns the restic subprocesses, SQLite and durable queue. One OS file lock admits a single worker per state database. Work is serialized; restic also supplies repository locking. Queued configuration is captured independently for every destination. After worker restart, unconfirmed running work becomes interrupted, not successful or automatically retried. A completed-but-unrecorded restic snapshot can be discovered by listing the repository.
+## Service
 
-SQLite migrations are embedded and versioned transactionally. Future schemas are rejected. Foreign keys, WAL and busy timeout are enabled on the single database connection. Every destination has a persistent result. Restores have separate persistent history but are currently synchronous; restoring through desktop blocks that request while the service remains alive.
+- **Store:** embedded, versioned SQLite migrations (`internal/core/migrations`, newer schemas refused).
+- **Licence:** Ed25519-signed tokens from the server; full mode until the synced expiry, then restore-only; a clock high-water mark resists clock rollback. Refresh every 6 hours.
+- **Plans and jobs:** one worker; each destination is a separate job; interrupted runs are marked, never assumed successful.
+- **Scheduler:** checks every minute; missed runs collapse into one catch-up run.
+- **Keys:** a random key per destination, sealed with DPAPI (machine scope) in the database; the recovery kit exports them.
+- **Backups:** restic with VSS (`--use-fs-snapshot`) and a retry without it; exit code 3 counts as a warning; cleanup (`forget --prune`) only after a complete snapshot.
+- **Volumes:** each destination remembers its disk's volume ID; a missing path is searched under the current drive letters; free space is measured after each run.
+- **Reports:** finished runs go to a local outbox and are sent when online; the server decides what to email.
+- **Updates:** signed manifest, verified installer, silent install only when idle.
 
-The local protocol is newline-delimited JSON v1, one request per pipe connection. A DACL restricts callers to the configured owner SID, administrators and SYSTEM. go-winio rejects remote pipe clients. The Rust client checks the server PID against SCM's registered BakvionService PID before sending data. No TCP listener exists. Windows behavior is not yet runtime-validated.
+## Server (apps/web)
 
-## Filesystem and recovery
+Next.js route handlers with a repository layer (`lib/server/repo*.ts`) over Supabase using the secret key. Rate limits live in Postgres. Device API: `sign-in`, `license`, `sign-out`, `reports`. Public: `leads`. Cron: `keepalive` (daily, also report summaries and clean-up). Admin pages check the admin session on every request.
 
-Only local absolute filesystem paths are accepted in saved plans. Source/repository containment is rejected in either direction, across registered plans and through existing links. Agent state and password files must sit outside sources. Restic does not run through a shell. All inherited RESTIC_* and RCLONE_* environment overrides are removed; the adapter disables shared on-disk cache.
+## Data that never leaves the PC
 
-Sources are passed relative to their common parent to avoid archiving unrelated ancestor metadata. Different Windows volumes currently require separate plans. All sources must be present at execution time. A source that disappears during backup may cause a restic nonzero/partial result; it is never treated as confirmed success and no retention follows.
-
-Restore validates full snapshot identifiers and manifest paths, rejects links/special nodes, stages under the target parent, verifies all selected regular files against restic dump content, then publishes a new tree. Existing targets are refused. The output retains the snapshot's directory tree; it is not flattened. Original-path overwrite, preservation of Windows security descriptors and privileged/reparse-point race hardening remain acceptance blockers.
-
-## UI and cloud
-
-Shared UI components use Radix accessible dialog primitives, Tailwind 4 tokens and Lucide icons. The desktop exposes only implemented controls and accurately reports missing service connectivity. Unknown consumption and verification metrics are not fabricated.
-
-The dashboard supports Supabase email OTP sign-in and read-only owner-scoped device/run/snapshot views. RLS defaults to no writes. No service-role key is needed by the deployed app. Application API contracts are currently handwritten Go/TypeScript types; schema generation and compatibility tests remain pending.
+Backup contents, file names, keys and folder paths stay on the PC and the client's storage. The server sees client and PC names, app versions, plan and destination names, run times and states, and error text for email reports.

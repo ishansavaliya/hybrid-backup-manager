@@ -1,31 +1,72 @@
-# Windows development operations
+# Windows: installer, service and updates
 
-**Pending Windows runtime validation. No production installer exists.**
+**Not yet accepted on a real Windows PC.** The code builds and the release workflow runs the Go tests on a Windows runner, but every item in the checklist below still needs a real Windows 10/11 run.
 
-The desktop and service are independently running executables. Build the agent using `scripts/build-agent.ps1`; build the desktop with the Tauri CLI on Windows. Do not use desktop closure as service shutdown. Windows Services is the authorized stop/restart interface.
+## What the installer does
 
-## Development registration
+`Bakvion-Setup.exe` (Tauri NSIS, per-machine, needs administrator approval once):
 
-1. Provision a dedicated non-administrator Windows account with Log on as a service. Assign only the source read permissions and repository/staging write permissions it needs.
-2. Put the executable, restic and their directories under administrator-controlled ACLs. Do not run a writable binary from a privileged account.
-3. Create a password file outside all sources and repositories. Restrict its ACL to the service identity and authorized administrators. This is temporary development provisioning, not the planned DPAPI system.
-4. Find the interactive user's SID using `whoami /user`. In an elevated PowerShell invoke:
+1. Installs `Bakvion.exe` (the app), `BakvionService.exe` and a checksum-verified `restic.exe` into `C:\Program Files\Bakvion`.
+2. Runs `BakvionService.exe install`, which:
+   - creates `C:\ProgramData\Bakvion` and makes it private to SYSTEM and Administrators (a folder squatted by another user is moved aside, never used);
+   - registers `BakvionService` ("Bakvion Background Backup") as LocalSystem, automatic start, restart after a crash (10 s, 30 s, then 60 s);
+   - starts it.
+3. Before an upgrade it stops the service; afterwards it registers and starts the new one.
 
-```powershell
-$credential = Get-Credential # dedicated service identity, never paste its password in chat
-./scripts/install-service-dev.ps1 -Executable 'C:\Program Files\Bakvion\BakvionService.exe' -Restic 'C:\Program Files\Bakvion\restic.exe' -StateDirectory 'C:\ProgramData\Bakvion\Agent' -OwnerSid 'S-1-5-21-REPLACE-WITH-REAL-SID' -ServiceCredential $credential
-Start-Service BakvionService
-Get-Service BakvionService
-```
+Uninstall runs `BakvionService.exe uninstall` (stops and removes the service). **Backups, keys, settings and history in `C:\ProgramData\Bakvion` and on backup disks are never deleted.**
 
-The script restricts state ACLs, registers automatic startup, configures restart actions and limits service-control writes to administrators/SYSTEM. The owner SID controls pipe access, not service administrator privileges. Provision paths/permissions before startup. `serve` is a diagnostic pipe mode, but the real desktop intentionally requires SCM service process authentication.
+Windows shows "Windows protected your PC → More info → Run anyway" on the first install because the installer is not code-signed yet. Updates install silently without that screen.
 
-## Maintenance and removal
+## Who can use it
 
-Use `Stop-Service BakvionService` for authorized maintenance. Service shutdown interrupts work; unconfirmed jobs become interrupted on next startup. Inspect snapshots before rerunning. The development uninstall script stops and removes registration while preserving state, repositories and passwords. Remove application files only after service termination and preserve offline recovery material independently.
+The service's named pipe (`\\.\pipe\Bakvion.v1`) admits Interactive users (anyone signed in to Windows on the PC), Administrators and SYSTEM, and rejects remote clients. The app also checks that the pipe really belongs to the registered service before sending anything.
 
-## Required acceptance before installer release
+## Files on the PC
 
-Run on actual Windows: install, upgrade with rollback, reboot and missed schedules, failure recovery, restricted user IPC, wrong owner denial, pipe squatting, service stop during backup/restore, external drive removal/reinsertion, long paths, junctions, locked files/VSS, ACL restoration and clean uninstall. Current service startup/recovery scripts are not evidence that these tests passed.
+| Path                              | Contents                                                                         |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `C:\ProgramData\Bakvion\agent.db` | Plans, schedules, history, sealed keys (DPAPI), licence, report outbox, settings |
+| `C:\ProgramData\Bakvion\updates\` | Downloaded, signature-checked installers                                         |
+| Backup disk `…\BakvionRepository` | The encrypted restic backup                                                      |
 
-Scheduling, volume GUID binding, VSS, tray launcher, updates, MSI/EXE packaging and signing are not implemented. CI builds unsigned executables only. Unsigned binaries are not claimed trusted by SmartScreen.
+## Automatic updates
+
+The service checks `https://github.com/ishansavaliya/bakvion-releases/releases/latest/download/latest.json` two minutes after start and then every six hours (an hour after a failure, 15 minutes while a backup runs). It installs a newer version only if:
+
+- the manifest's Ed25519 signature matches the key built into the app;
+- the downloaded installer's size and SHA-256 match the signed manifest, re-checked while the file is held open against changes;
+- no backup is queued or running.
+
+It runs the installer silently (`/S`). The app window closes during the update; reopen it from the Start menu. Development builds never update themselves. Settings → **About & updates** shows the app, service and latest versions, the last check, and a **Check for updates** button.
+
+## Acceptance checklist (run on Windows 10 and 11)
+
+**Install and service**
+
+- [ ] Fresh install; service running after install and after a reboot.
+- [ ] A second Windows user on the same PC can open the app; a remote connection cannot.
+- [ ] Pre-create `C:\ProgramData\Bakvion` as a normal user, then install: the folder is moved aside and a private one is used.
+- [ ] Uninstall removes the service and app; `C:\ProgramData\Bakvion` and backups remain; reinstall picks them up.
+
+**Accounts and membership**
+
+- [ ] Sign in with username/password and with a 6-digit code; PC limit enforced.
+- [ ] Offline for days: backups continue until the synced expiry; "Last synced" and the 3-day warning appear.
+- [ ] Expired or blocked: restore-only; old backups restore; "Open a backup from another PC" works.
+
+**Backups**
+
+- [ ] Set up an external disk, back up, restore everything and a single file (Restore calendar shows the right days).
+- [ ] Daily/weekly schedule runs; PC off at that time → one catch-up run.
+- [ ] Tally open during backup: its files are included (VSS); History shows any fallback note.
+- [ ] Unplug the disk and reconnect it with another drive letter: next backup finds it.
+- [ ] Fill a test disk past 90%: banner, badge, and email note.
+- [ ] Google Drive for desktop in "Mirror files": the Google Drive button finds the folder; "Stream files" shows the guide.
+- [ ] Recovery kit export; restore on a second PC with only the kit.
+- [ ] Delete a plan; reopen its backup with the kit.
+
+**Email and updates**
+
+- [ ] Test email arrives; a failed backup emails at once; hourly plan gets the daily summary.
+- [ ] Release 0.2.1 while 0.2.0 is installed: the PC updates itself silently; About & updates shows 0.2.1 for app and service.
+- [ ] Update while a backup runs: it waits until the backup ends.
