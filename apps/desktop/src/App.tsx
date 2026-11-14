@@ -270,6 +270,7 @@ function Main({
             onThemePref={onThemePref}
             onRefreshService={() => void refresh()}
             kit={data?.kit}
+            serviceVersion={data?.status.version ?? acct?.appVersion ?? ""}
             busy={busy}
             act={act}
             notify={setMessage}

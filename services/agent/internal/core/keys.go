@@ -216,6 +216,42 @@ func (a *Agent) RecoveryKit() (string, error) {
 			}
 		}
 	}
+	// Keys of backups whose plan was deleted: the backup is still on its disk.
+	used := map[string]bool{}
+	for _, p := range plans {
+		for _, d := range p.Destinations {
+			if k, err := repoKey(d.Repository); err == nil {
+				used[k] = true
+			}
+		}
+	}
+	rows, err := a.Store.DB.Query(`SELECT repository,sealed FROM destination_keys ORDER BY created_at`)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var repo string
+		var sealed []byte
+		if err = rows.Scan(&repo, &sealed); err != nil {
+			return "", err
+		}
+		if used[repo] {
+			continue
+		}
+		s, err := a.sealer()
+		if err != nil {
+			return "", err
+		}
+		plain, err := s.Open(sealed)
+		if err != nil {
+			return "", errors.New("cannot unlock a backup key on this PC")
+		}
+		fmt.Fprintf(&b, "\r\nPlan:        (deleted plan)\r\nLocation:    %s\r\nKey:         %s\r\n", repo, plain)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
 	return b.String(), nil
 }
 

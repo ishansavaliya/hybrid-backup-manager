@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { downloadInfo } from "../../lib/server/release";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
@@ -39,12 +40,13 @@ function DownloadButton({
   label,
   soon,
   large,
+  url,
 }: {
   label: string;
   soon: string;
   large?: boolean;
+  url?: string;
 }) {
-  const url = process.env.NEXT_PUBLIC_DOWNLOAD_URL;
   const cls = `site-btn site-btn--primary${large ? " site-btn--lg" : ""}`;
   if (!url)
     return (
@@ -61,10 +63,11 @@ function DownloadButton({
   );
 }
 
-export function Landing({ lang }: { lang: Lang }) {
+export async function Landing({ lang }: { lang: Lang }) {
   const t = messages(lang);
-  const version = process.env.NEXT_PUBLIC_DOWNLOAD_VERSION;
-  const size = process.env.NEXT_PUBLIC_DOWNLOAD_SIZE;
+  const download = await downloadInfo();
+  const version = download?.version;
+  const size = download?.size;
   const year = new Date().getFullYear();
   return (
     <div
@@ -123,6 +126,7 @@ export function Landing({ lang }: { lang: Lang }) {
             <p className="site-lead">{t.hero.lead}</p>
             <div className="site-cta" id="download">
               <DownloadButton
+                url={download?.url}
                 label={t.hero.download}
                 soon={t.hero.comingSoon}
                 large
@@ -342,6 +346,7 @@ export function Landing({ lang }: { lang: Lang }) {
             <h2>{t.final.title}</h2>
             <p>{t.final.subtitle}</p>
             <DownloadButton
+              url={download?.url}
               label={t.hero.download}
               soon={t.hero.comingSoon}
               large

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Bakvion",
+    "copyright": "© Bakvion",
+    "resources": {
+      "../../../artifacts/BakvionService.exe": "BakvionService.exe",
+      "../../../artifacts/restic.exe": "restic.exe"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "./windows/hooks.nsh",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

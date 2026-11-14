@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "test:database": "node tests/database/run.mjs",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

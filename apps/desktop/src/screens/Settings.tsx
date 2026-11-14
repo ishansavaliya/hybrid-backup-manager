@@ -5,6 +5,7 @@ import { choose, request } from "../api";
 import { format, LANG_NAME, LANGS, useI18n, type Lang } from "../i18n";
 import type { ThemePref } from "../theme";
 import { Button, Card, CardHeader, Field, Notice, Segmented } from "../ui";
+import { AboutUpdates } from "./AboutUpdates";
 import { EmailReports } from "./EmailReports";
 
 export function Settings({
@@ -16,6 +17,7 @@ export function Settings({
   onThemePref,
   onRefreshService,
   kit,
+  serviceVersion,
   busy,
   act,
   notify,
@@ -28,6 +30,7 @@ export function Settings({
   onThemePref: (p: ThemePref) => void;
   onRefreshService: () => void;
   kit: KitStatus | undefined;
+  serviceVersion: string;
   busy: boolean;
   act: (fn: () => Promise<void>) => Promise<void>;
   notify: (m: string) => void;
@@ -86,6 +89,7 @@ export function Settings({
             ) : null}
           </div>
         </Card>
+        <AboutUpdates serviceVersion={serviceVersion} busy={busy} act={act} />
       </div>
       <div className="gx-stack">
         <Card>

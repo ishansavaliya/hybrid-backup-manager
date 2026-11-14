@@ -9,9 +9,11 @@ import (
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/cloud"
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/core"
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/license"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/update"
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -44,9 +46,15 @@ func run() error {
 	defer cancel()
 	args := flags.Args()
 	if len(args) != 1 {
-		return errors.New("usage: bakvion [flags] request|work|serve|service|recover|snapshots; flags precede command")
+		return errors.New("usage: bakvion [flags] request|work|serve|service|install|uninstall|recover|snapshots; flags precede command")
 	}
 	// Windows: read open files (Tally, Outlook) from a shadow copy.
+	switch args[0] {
+	case "install":
+		return installService()
+	case "uninstall":
+		return uninstallService()
+	}
 	engine := core.Engine{Binary: *binary, FSSnapshot: runtime.GOOS == "windows"}
 	if args[0] == "recover" || args[0] == "snapshots" {
 		d := core.Destination{Repository: *repo, PasswordFile: *password}
@@ -77,6 +85,12 @@ func run() error {
 		}
 	} else {
 		a.LicenseKey = key
+	}
+	if args[0] == "service" {
+		// Only the installed service updates itself; CLI and dev runs never do.
+		if pub, keyErr := update.PublicKey(); keyErr == nil {
+			a.Updater = update.Client{PublicKey: pub, Dir: filepath.Join(filepath.Dir(*state), "updates")}
+		}
 	}
 	switch args[0] {
 	case "request":

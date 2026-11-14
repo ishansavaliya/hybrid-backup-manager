@@ -31,6 +31,9 @@ type Agent struct {
 	// Sealer protects managed destination keys; nil picks the platform default.
 	Sealer Sealer
 
+	// Updater installs new releases; nil disables updates (development, tests).
+	Updater Updater
+
 	nudgeOnce   sync.Once
 	reportNudge chan struct{}
 }
@@ -292,6 +295,16 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 			return nil, err
 		}
 		return a.OpenExistingBackup(ctx, p.Name, p.Repository, p.Key)
+	case "deletePlan":
+		var p struct {
+			PlanID string `json:"planId"`
+		}
+		if err := decode(r.Params, &p); err != nil {
+			return nil, err
+		}
+		return map[string]bool{"deleted": true}, a.DeletePlan(p.PlanID)
+	case "updateStatus", "checkForUpdates":
+		return a.handleUpdates(ctx, r)
 	case "findGoogleDrive":
 		return map[string]any{"folders": FindGoogleDrive()}, nil
 	case "overview":

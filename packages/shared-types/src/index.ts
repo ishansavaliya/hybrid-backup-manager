@@ -125,3 +125,17 @@ export interface AccountStatus {
 export type SignInParams =
   | { method: "password"; username: string; password: string }
   | { method: "code"; code: string };
+/** Settings → About & updates. */
+export interface UpdateStatus {
+  /** Version of the background service. */
+  current: string;
+  /** Newest published version ("" until checked). */
+  latest: string;
+  available: boolean;
+  checkedAt: string;
+  /** Version being installed right now, or "". */
+  installing: string;
+  error: string;
+  /** False for development builds. */
+  automatic: boolean;
+}

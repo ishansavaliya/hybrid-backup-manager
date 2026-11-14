@@ -41,6 +41,8 @@ async function mock(
     disks?: unknown[];
     executions?: unknown[];
     drive?: { path: string; mode: string }[];
+    appVersion?: string;
+    update?: Record<string, unknown>;
   },
 ) {
   await page.addInitScript(
@@ -57,6 +59,7 @@ async function mock(
           args: { request?: { method: string; params: unknown } },
         ) => {
           if (cmd.startsWith("plugin:dialog")) return "D:\\Safe";
+          if (cmd === "plugin:app|version") return o.appVersion ?? "0.2.0";
           const { method, params } = args.request ?? {
             method: cmd,
             params: null,
@@ -96,6 +99,20 @@ async function mock(
                 retention: { enabled: false, daily: 7, weekly: 4, monthly: 12 },
                 restoreOnly: true,
               },
+            };
+          if (method === "updateStatus" || method === "checkForUpdates")
+            return {
+              version: 1,
+              result:
+                method === "checkForUpdates"
+                  ? {
+                      ...o.update,
+                      latest: "0.3.0",
+                      available: false,
+                      current: "0.3.0",
+                      checkedAt: new Date().toISOString(),
+                    }
+                  : o.update,
             };
           if (method === "findGoogleDrive")
             return { version: 1, result: { folders: o.drive ?? [] } };
@@ -484,4 +501,94 @@ test("restore-only plans cannot be backed up or edited", async ({ page }) => {
   // Overview counts only this PC's own plan.
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(page.locator(".gx-tile").first()).toContainText("1");
+});
+
+const updateBase = {
+  current: "0.2.0",
+  latest: "0.3.0",
+  available: true,
+  checkedAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  installing: "",
+  error: "",
+  automatic: true,
+};
+
+test("settings shows versions and checks for updates", async ({ page }) => {
+  await mock(page, { plans: [plan], update: updateBase });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const card = page.locator(".gx-card").filter({ hasText: "About & updates" });
+  await expect(card.getByText("App version")).toBeVisible();
+  await expect(card.locator("dd").nth(0)).toHaveText("0.2.0");
+  await expect(card.locator("dd").nth(1)).toHaveText("0.2.0");
+  await expect(card.locator("dd").nth(2)).toHaveText("0.3.0");
+  await expect(card.getByText("2 hours ago")).toBeVisible();
+  await expect(
+    card.getByText(
+      "Version 0.3.0 is available. It installs automatically when no backup is running.",
+    ),
+  ).toBeVisible();
+  await card.getByRole("button", { name: "Check for updates" }).click();
+  await expect(card.getByText("Bakvion is up to date.")).toBeVisible();
+});
+
+test("settings warns when app and service versions differ", async ({
+  page,
+}) => {
+  await mock(page, {
+    plans: [plan],
+    appVersion: "0.3.0",
+    update: { ...updateBase, available: false, latest: "0.3.0" },
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByText(
+      "The app and the background service have different versions. Restart the PC to finish the update.",
+    ),
+  ).toBeVisible();
+});
+
+test("offline update check is explained", async ({ page }) => {
+  await mock(page, {
+    plans: [plan],
+    update: {
+      ...updateBase,
+      available: false,
+      latest: "",
+      error:
+        "No internet connection. Updates will be checked when this PC is online.",
+    },
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByText(
+      "No internet connection. Updates will be checked when this PC is online.",
+    ),
+  ).toBeVisible();
+});
+
+test("deleting a plan asks first and keeps backups", async ({ page }) => {
+  await mock(page, { plans: [plan], kit: { needed: true, savedAt: null } });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Backup plans", exact: true }).click();
+  await page.getByRole("button", { name: "Delete plan: Documents" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Delete “Documents”?" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Backups already saved stay on the disk", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Save your recovery kit first", { exact: false }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Delete plan" }).click();
+  await expect.poll(() => sent(page, "deletePlan")).toEqual({ planId: "p1" });
+  await expect(
+    page.getByText("Plan deleted. Its backups are still on the disk."),
+  ).toBeVisible();
 });

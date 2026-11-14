@@ -98,3 +98,51 @@ func TestRealExpiredClientRestoresOnNewPC(t *testing.T) {
 		t.Fatalf("scheduled: %v", q)
 	}
 }
+
+func TestRealDeletePlanKeepsBackupAndKey(t *testing.T) {
+	a, p := managedFixture(t)
+	ids := map[string]string{"planId": p.ID, "destinationId": "local"}
+	if r := pipe(t, a, "initRepository", ids); r.Error != nil {
+		t.Fatalf("set up: %+v", r.Error)
+	}
+	job := backupOnce(t, a, p)
+	key, err := a.withKey(p.Destinations[0], false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Not while a backup of it is queued.
+	if _, err = a.Enqueue(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if r := pipe(t, a, "deletePlan", map[string]string{"planId": p.ID}); r.Error == nil {
+		t.Fatal("deleted while queued")
+	}
+	if err = a.Work(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if r := pipe(t, a, "deletePlan", map[string]string{"planId": p.ID}); r.Error != nil {
+		t.Fatalf("delete: %+v", r.Error)
+	}
+	if plans, _ := a.Store.Plans(); len(plans) != 0 {
+		t.Fatalf("plan still there: %+v", plans)
+	}
+	if jobs, _ := a.Store.Executions(); len(jobs) != 0 {
+		t.Fatalf("history of the deleted plan kept: %d", len(jobs))
+	}
+	// The kit still has the key, and the backup opens again with it.
+	kit, err := a.RecoveryKit()
+	if err != nil || !containsAll(kit, "(deleted plan)", key.password) {
+		t.Fatalf("kit: %v", err)
+	}
+	r := pipe(t, a, "openExistingBackup", map[string]string{"name": "Old", "repository": p.Destinations[0].Repository, "key": key.password})
+	if r.Error != nil {
+		t.Fatalf("reopen: %+v", r.Error)
+	}
+	if r := pipe(t, a, "snapshots", map[string]string{"planId": r.Result.(Plan).ID, "destinationId": "backup"}); r.Error != nil {
+		t.Fatalf("snapshots: %+v", r.Error)
+	}
+	_ = job
+	if r := pipe(t, a, "deletePlan", map[string]string{"planId": "missing"}); r.Error == nil {
+		t.Fatal("deleted a missing plan")
+	}
+}

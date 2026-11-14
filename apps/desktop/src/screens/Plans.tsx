@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarClock, Database, HardDrive, Play } from "lucide-react";
+import { CalendarClock, Database, HardDrive, Play, Trash2 } from "lucide-react";
 import type {
   AgentOverview,
   Plan,
@@ -47,6 +47,7 @@ export function Plans({
   type Target = { planId: string; destinationId: string };
   const [initFor, setInitFor] = useState<Target | null>(null);
   const [connectFor, setConnectFor] = useState<Target | null>(null);
+  const [deleting, setDeleting] = useState<Plan | null>(null);
   const [key, setKey] = useState("");
   const [editing, setEditing] = useState<{
     plan: Plan;
@@ -113,9 +114,29 @@ export function Plans({
               }
               actions={
                 ro ? (
-                  <Badge tone="warning">{p.restoreOnly}</Badge>
+                  <>
+                    <Badge tone="warning">{p.restoreOnly}</Badge>
+                    <Button
+                      variant="ghost"
+                      disabled={busy || running}
+                      aria-label={`${p.delete}: ${plan.name}`}
+                      title={p.delete}
+                      onClick={() => setDeleting(plan)}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </Button>
+                  </>
                 ) : (
                   <>
+                    <Button
+                      variant="ghost"
+                      disabled={busy || running}
+                      aria-label={`${p.delete}: ${plan.name}`}
+                      title={p.delete}
+                      onClick={() => setDeleting(plan)}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </Button>
                     <Button
                       variant="secondary"
                       disabled={busy || paused}
@@ -280,6 +301,42 @@ export function Plans({
             }}
           >
             {p.init}
+          </Button>
+        </footer>
+      </GxDialog>
+      <GxDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={format(p.deleteTitle, { name: deleting?.name ?? "" })}
+        closeLabel={t.common.close}
+        width={500}
+      >
+        <div className="gx-dialog__body">
+          <p className="gx-muted">{p.deleteBody}</p>
+          {data.kit?.needed ? (
+            <p className="gx-hint" style={{ color: "var(--gx-warn)" }}>
+              {p.deleteKit}
+            </p>
+          ) : null}
+        </div>
+        <footer className="gx-dialog__foot">
+          <Button variant="secondary" onClick={() => setDeleting(null)}>
+            {t.common.cancel}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              const target = deleting;
+              setDeleting(null);
+              if (target)
+                void act(async () => {
+                  await request("deletePlan", { planId: target.id });
+                  notify(p.deleteOk);
+                });
+            }}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+            {p.delete}
           </Button>
         </footer>
       </GxDialog>

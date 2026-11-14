@@ -231,7 +231,12 @@
       "connectOk": "Backup connected. You can restore from it now.",
       "diskFull": "{n}% full",
       "restoreOnly": "Restore only",
-      "restoreOnlyHint": "Opened from another PC. You can restore from it; to back up this PC, create a new plan."
+      "restoreOnlyHint": "Opened from another PC. You can restore from it; to back up this PC, create a new plan.",
+      "delete": "Delete plan",
+      "deleteTitle": "Delete “{name}”?",
+      "deleteBody": "Scheduled backups for this plan stop and it is removed from this PC. Backups already saved stay on the disk; you can open them again with your recovery kit (Restore → Open a backup from another PC).",
+      "deleteKit": "Save your recovery kit first: it holds the key for these backups.",
+      "deleteOk": "Plan deleted. Its backups are still on the disk."
     },
     "wizard": {
       "title": "Create a backup plan",
@@ -384,7 +389,22 @@
       "reportsTest": "Send test email",
       "reportsTestSent": "Test email sent to {emails}. Check the inbox and the spam folder.",
       "reportsHint": "Reports are sent when this PC is online. If it is offline, they are sent as soon as it reconnects.",
-      "reportsInvalid": "Check the email addresses."
+      "reportsInvalid": "Check the email addresses.",
+      "aboutTitle": "About & updates",
+      "aboutBody": "Bakvion updates itself in the background. Use these numbers to check this PC has the latest version.",
+      "appVersionLabel": "App version",
+      "serviceVersion": "Service version",
+      "latestVersion": "Latest version",
+      "lastChecked": "Last checked",
+      "notChecked": "Not checked yet",
+      "checkUpdates": "Check for updates",
+      "upToDate": "Bakvion is up to date.",
+      "updateAvailable": "Version {v} is available. It installs automatically when no backup is running.",
+      "installing": "Installing version {v}. The app will close; open it again in a minute.",
+      "devBuild": "Development build: automatic updates are off.",
+      "mismatch": "The app and the background service have different versions. Restart the PC to finish the update.",
+      "updOffline": "No internet connection. Updates will be checked when this PC is online.",
+      "updBusy": "A backup is running; the update will install when it finishes."
     },
     "notice": {
       "expired": "Your membership has expired.",

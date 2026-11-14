@@ -1,0 +1,191 @@
+# Builds and publishes a Windows release when a version tag is pushed
+# (made by `pnpm release X.Y.Z`). Installers go to the public releases repo;
+# this source repo stays private.
+#
+# Security: every action is pinned to a full commit SHA. The build job holds
+# no secrets; only the small publish job sees the signing key and token, and
+# it runs no third-party actions.
+#
+# Needs (Settings → Secrets and variables → Actions):
+#   secret   RELEASES_TOKEN              fine-grained token, Contents: write, releases repo only
+#   secret   BAKVION_UPDATE_SIGNING_KEY  content of ~/.bakvion/update-signing-key.txt
+#   variable BAKVION_SERVER_URL          https://<your-site>.vercel.app
+#   variable RELEASES_REPO               e.g. ishansavaliya/bakvion-releases
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  RELEASES_REPO: ${{ vars.RELEASES_REPO || 'ishansavaliya/bakvion-releases' }}
+
+jobs:
+  test:
+    name: Tests (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:database
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: services/agent/go.mod
+          cache-dependency-path: services/agent/go.sum
+      - name: Fetch pinned restic
+        run: python3 scripts/fetch-restic.py --output "$RUNNER_TEMP/restic"
+      - name: Go tests with real restic
+        working-directory: services/agent
+        env:
+          BAKVION_TEST_RESTIC: ${{ runner.temp }}/restic/restic
+        run: |
+          go vet ./...
+          GOOS=windows go vet ./...
+          go test ./...
+
+  windows-tests:
+    name: Windows tests (evidence, not blocking yet)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: services/agent/go.mod
+          cache-dependency-path: services/agent/go.sum
+      - name: Fetch pinned restic
+        run: python scripts/fetch-restic.py --output "${{ runner.temp }}\restic"
+      - name: Go tests on Windows (VSS, volumes, DPAPI)
+        working-directory: services/agent
+        env:
+          BAKVION_TEST_RESTIC: ${{ runner.temp }}\restic\restic.exe
+        run: go test ./...
+
+  build:
+    name: Build installer (no secrets)
+    needs: test
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Check tag, version and settings
+        id: check
+        shell: pwsh
+        env:
+          SERVER_URL: ${{ vars.BAKVION_SERVER_URL }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match package.json version $version. Use pnpm release." }
+          if (-not $env:SERVER_URL -or -not $env:SERVER_URL.StartsWith("https://")) { throw "Set the repository variable BAKVION_SERVER_URL (https://...)." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: services/agent/go.mod
+          cache-dependency-path: services/agent/go.sum
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Fetch pinned restic (checksum verified)
+        run: python scripts/fetch-restic.py --output artifacts
+
+      - name: Build background service
+        shell: pwsh
+        env:
+          BAKVION_SERVER_URL: ${{ vars.BAKVION_SERVER_URL }}
+          BAKVION_RELEASES_REPO: ${{ env.RELEASES_REPO }}
+        run: ./scripts/build-agent.ps1
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        run: pnpm --filter @bakvion/desktop tauri build
+
+      - name: Collect installer
+        shell: pwsh
+        run: |
+          $v = "${{ steps.check.outputs.version }}"
+          $setup = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "Installer not found" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $setup.FullName "dist/Bakvion-Setup-$v.exe"
+          Copy-Item $setup.FullName "dist/Bakvion-Setup.exe"
+          # Lets a later commit pin Rust dependencies exactly.
+          Copy-Item apps/desktop/src-tauri/Cargo.lock dist/Cargo.lock -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: installer
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Sign and publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: installer
+          path: dist
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: services/agent/go.mod
+          cache: false
+
+      - name: Sign update manifest
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          BAKVION_UPDATE_SIGNING_KEY: ${{ secrets.BAKVION_UPDATE_SIGNING_KEY }}
+        run: |
+          test -n "$BAKVION_UPDATE_SIGNING_KEY" || { echo "Set the secret BAKVION_UPDATE_SIGNING_KEY."; exit 1; }
+          node scripts/sign-update.mjs --installer "dist/Bakvion-Setup-$VERSION.exe" --version "$VERSION" \
+            --url "https://github.com/$RELEASES_REPO/releases/download/v$VERSION/Bakvion-Setup-$VERSION.exe" --out dist/latest.json
+
+      - name: Check the app will accept this update
+        working-directory: services/agent
+        env:
+          MANIFEST: ${{ github.workspace }}/dist/latest.json
+          VERSION: ${{ needs.build.outputs.version }}
+        run: go test -count=1 ./internal/update/xcheck
+
+      - name: Publish to the releases repo
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN" || { echo "Set the secret RELEASES_TOKEN."; exit 1; }
+          gh release create "v$VERSION" --repo "$RELEASES_REPO" --title "Bakvion $VERSION" \
+            --notes "Bakvion $VERSION for Windows 10 and 11. Existing installations update themselves automatically." \
+            "dist/Bakvion-Setup-$VERSION.exe" dist/Bakvion-Setup.exe dist/latest.json

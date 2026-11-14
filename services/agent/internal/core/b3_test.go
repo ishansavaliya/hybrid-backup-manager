@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -58,8 +59,8 @@ func TestRealShadowCopyFallsBackWhenUnavailable(t *testing.T) {
 }
 
 func TestRealUnreadableFileKeepsSnapshotAndSkipsCleanup(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root can read every file")
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("needs a file this user cannot read (chmod 0 has no effect on Windows)")
 	}
 	a, p := managedFixture(t)
 	p.Retention = Retention{Enabled: true, Daily: 1}
