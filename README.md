@@ -2,114 +2,73 @@
 
 **Your Data. Always Protected.**
 
-On a Mac, start with [RUN_ON_MAC.md](RUN_ON_MAC.md). To continue in another Codex project, read [HANDOFF.md](HANDOFF.md) and use its continuation prompt.
+Automatic, encrypted file backups for Windows 10 and 11, sold as memberships to small businesses. Clients download one installer, sign in with a username/password or a 6-digit code from their provider, and back up to their own external disk or Google Drive. Backups never pass through Bakvion's servers.
 
-Windows-first, offline-capable encrypted file backup and recovery. This repository contains a **working development milestone**, not a production release. Real local restic integration tests pass on Linux; Windows runtime, installer and hosted-service acceptance are pending.
+File-level backups only; this is not a bare-metal system image.
 
-## What works
+## What is in this repository
 
-- Go CLI: local restic repository initialization, incremental encrypted backup, independent destination jobs, persistent SQLite history and interruption reconciliation.
-- Repository snapshot listing, file-manifest browsing, write/read connection probes and complete data-integrity checks.
-- Full or selected-path restore into a **new directory**, with restic verification and SHA-256 comparison against snapshot contents before publication.
-- Offline recovery without SQLite, Supabase or the desktop UI.
-- React desktop frontend with a native-selection wizard, jobs, snapshots, recovery and light/dark themes. Tauri Windows named-pipe bridge and SCM service source are supplied; Windows runtime validation is pending.
-- Next.js dashboard with Supabase email sign-in and owner-scoped metadata reads. Device enrollment, sync and remote commands are not enabled.
-- Supabase migration with 13 RLS-protected tables, workspace checks and Windows/Linux CI definitions.
+| Path                            | What it is                                                                                                                  |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `apps/desktop`                  | Windows app (Tauri 2 + React 19). Talks to the background service over a local named pipe.                                  |
+| `services/agent`                | Background service (Go): plans, schedules, restic backups, restore, licence, email-report outbox, auto-update.              |
+| `apps/web`                      | Next.js 16 on Vercel: public website (`/`, `/hi`, `/gu`), admin panel (`/bkpadmin`), device API, enquiry and report emails. |
+| `packages/*`                    | Shared UI (Graphite design), i18n (English, Hindi, Gujarati), types, validation.                                            |
+| `supabase/migrations`           | Postgres schema (clients, devices, codes, audit, leads, backup reports).                                                    |
+| `scripts/`                      | Release, update signing, restic download, agent build.                                                                      |
+| `.github/workflows/release.yml` | Builds, signs and publishes the Windows installer when a version tag is pushed.                                             |
 
-Only local filesystem repositories have real integration evidence. Mounted filesystems use the same adapter but require separate network/disk acceptance. No cloud connector is supported yet. No demo data is used by either application.
+## Features
 
-## Prerequisites and builds
+- **Accounts and membership:** the admin creates clients with a username/password or one-time 6-digit codes (shared on WhatsApp) and a PC limit. The app works offline until the synced expiry date. An expiry badge appears near the end of the membership; after expiry the app is **restore-only** (no new backups, every old backup restorable). "Last synced N days ago" and a warning after 3 days.
+- **Backups:** encrypted restic backups to an external disk, another drive, a folder or a Google Drive "Mirror files" folder. Schedules (hourly, daily, chosen weekdays) with one catch-up run after the PC was off. Optional automatic cleanup of old versions.
+- **Windows specifics:** open files (Tally, Outlook) are read from a shadow copy (VSS) with a safe fallback; an external disk is found again when its drive letter changes; a warning when a backup disk is 90% full.
+- **Keys:** Bakvion creates each destination's key and locks it to the PC (DPAPI). A **recovery kit** file holds the keys for restoring on another PC; "Open a backup from another PC" uses it, also with an expired membership.
+- **Email reports:** up to 3 addresses per PC; every backup / only failures / off; hourly plans get one daily summary; branded emails with plain-language causes and fixes.
+- **Restore:** browse backups by date (calendar), restore everything or one file/folder into a new folder, verified against the backup.
+- **Updates:** the service installs signed updates silently when no backup is running. Settings → About & updates shows the app, service and latest versions.
+- **Admin panel:** clients, PCs (last seen, last backup, email reports), codes, history, leads from the "Connect with Bakvion experts" form.
+- **Languages:** English, Hindi, Gujarati everywhere in the app and website; light and dark themes.
 
-Use Node 24, pnpm 11.25.0, Go 1.25.5 and restic 0.18.1 for this milestone. Rust stable, Windows build tools and WebView2 are needed for Tauri on Windows. Lockfiles pin JavaScript and Go dependencies; Rust dependency locking remains a reproducibility blocker until the Windows/Rust build is run.
+## Run it on a Mac (development)
 
-```sh
-pnpm install --frozen-lockfile
-python3 scripts/fetch-restic.py --output /absolute/private/tools
-# Add that tools directory to PATH, or pass --restic explicitly.
-go -C services/agent build -trimpath -o ../../artifacts/bakvion ./cmd/bakvion
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm test:database
-pnpm build
-pnpm exec playwright install chromium
-pnpm test:e2e
-```
-
-Create `artifacts/` before building the CLI. On Windows use `scripts/build-agent.ps1` and `pnpm --filter @bakvion/desktop tauri build --no-bundle`. The desktop executable is `apps/desktop/src-tauri/target/release/Bakvion.exe`. Bundling is intentionally disabled until service installation/upgrade/uninstall acceptance exists. No setup executable has been produced or validated.
-
-The downloader verifies release SHA-256 checksums over HTTPS. Release-signing-key verification and dependency security review remain release gates. Do not substitute an untrusted executable in `--restic`.
-
-## Run the applications
+Use Node 24 and the pinned pnpm through `npx` (no global install needed):
 
 ```sh
-pnpm dev:desktop  # frontend at localhost:1420; browser cannot control the agent
-pnpm dev:web      # dashboard at localhost:3000
+export PATH=/opt/homebrew/opt/node@24/bin:$PATH
+npx --yes pnpm@11.25.0 install --frozen-lockfile
+npx --yes pnpm@11.25.0 dev:web       # website + admin: http://localhost:3000 and /bkpadmin
+npx --yes pnpm@11.25.0 dev:desktop   # app screens in a browser: http://localhost:1420
 ```
 
-For the real desktop runtime, run `pnpm --filter @bakvion/desktop tauri dev` on Windows with the registered service running. Browser mode explicitly reports disconnected status, does not invent results, and disables plan creation. Closing the desktop process never stops the separately running agent.
+The website and admin need `apps/web/.env.local` (see `apps/web/.env.example`). The desktop preview shows "service not connected" because the background service runs only on Windows. Details: [RUN_ON_MAC.md](RUN_ON_MAC.md).
 
-See [Windows operations](docs/operations/WINDOWS.md) for the development service registration procedure. Do not run the agent as LocalSystem for convenience.
-
-## First real local backup using the CLI
-
-Keep all source, repository, state and password locations separate. Use absolute paths. Make a strong password file containing at least 16 bytes; 32 random bytes or more are recommended. On Unix it must be mode `0600` or stricter. On Windows restrict the ACL to the service identity and authorized administrators. This development mechanism is **not** Windows credential isolation; DPAPI-backed enrollment is pending.
-
-Save a private `plan.json` outside the repository checkout, adapting paths for your machine:
-
-```json
-{
-  "version": 1,
-  "method": "savePlan",
-  "params": {
-    "id": "documents",
-    "name": "Documents",
-    "sources": ["/home/me/Documents"],
-    "exclusions": ["*.tmp"],
-    "destinations": [
-      {
-        "id": "external",
-        "name": "External disk",
-        "repository": "/media/me/BackupDisk/BakvionRepository",
-        "passwordFile": "/home/me/.config/bakvion-private/password"
-      }
-    ]
-  }
-}
-```
+## Tests
 
 ```sh
-artifacts/bakvion --state /private/bakvion/agent.db request < /private/plan.json
-# Use that same --state on every command below.
+npx --yes pnpm@11.25.0 typecheck
+npx --yes pnpm@11.25.0 lint
+npx --yes pnpm@11.25.0 format:check
+npx --yes pnpm@11.25.0 test             # web and validation unit tests
+npx --yes pnpm@11.25.0 test:database    # migrations and RLS in embedded Postgres
+npx --yes pnpm@11.25.0 test:e2e         # desktop and website in Chromium
+BAKVION_TEST_RESTIC=$(which restic) go -C services/agent test ./...   # real backups
+GOOS=windows go -C services/agent vet ./...
 ```
 
-The `request` command reads one JSON request from stdin and emits a versioned JSON response. Send these requests in order:
+Without `BAKVION_TEST_RESTIC` the real-backup tests skip; a skipped run is not evidence.
 
-```json
-{"version":1,"method":"testDestination","params":{"planId":"documents","destinationId":"external"}}
-{"version":1,"method":"initRepository","params":{"planId":"documents","destinationId":"external"}}
-{"version":1,"method":"startBackup","params":{"planId":"documents"}}
-```
-
-Each line is a **separate** invocation of `request`. Initialize only a new repository; existing repositories are not overwritten. `startBackup` queues work. On standalone CLI installations, drain the queue explicitly:
+## Releasing
 
 ```sh
-artifacts/bakvion --state /private/bakvion/agent.db work
+npx --yes pnpm@11.25.0 release 0.2.0   # sets the version everywhere, prints the next commands
 ```
 
-On Windows the running service drains its own state database automatically. Avoid a second worker. Check actual destination outcomes using `{"version":1,"method":"overview"}`; a successful queue command does not mean the backup succeeded. Multiple destinations may have different outcomes. Backups never initialize a missing repository automatically, prune history or delete source files.
+Pushing the `v0.2.0` tag runs `.github/workflows/release.yml`, which publishes `Bakvion-Setup.exe` and a signed `latest.json` to the public `ishansavaliya/bakvion-releases` repository. Setup and secrets: [docs/operations/DEPLOYMENT.md](docs/operations/DEPLOYMENT.md).
 
-## Recovery
+## More
 
-See [offline disaster recovery](docs/recovery/OFFLINE.md). Recover with a new restic/CLI installation and the repository password even when hosted services and SQLite are lost. Original-path overwrite, special files and symlink restoration are unavailable. File-level snapshots are **not bare-metal system images**.
-
-## Tests and status
-
-```sh
-BAKVION_TEST_RESTIC=/absolute/path/to/restic go -C services/agent test -v ./...
-go -C services/agent vet ./...
-```
-
-Without `BAKVION_TEST_RESTIC`, repository integration tests explicitly skip; do not report a skipped run as provider validation. In PowerShell set `$env:BAKVION_TEST_RESTIC` before invoking Go. CI downloads the pinned official release and runs tests on Linux and Windows, but these workflow runs have not been observed in this session.
-
-See [implementation plan](docs/IMPLEMENTATION_PLAN.md), [test evidence](docs/PROGRESS.md), [production blockers](docs/PRODUCTION_READINESS.md), [threat model](docs/security/THREAT_MODEL.md), and [deployment instructions](docs/operations/DEPLOYMENT.md).
+- [HANDOFF.md](HANDOFF.md): current state and how to continue.
+- [docs/operations/WINDOWS.md](docs/operations/WINDOWS.md): installer, service, updates and the Windows test checklist.
+- [docs/recovery/OFFLINE.md](docs/recovery/OFFLINE.md): restoring without the app or the internet.
+- [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md): what is done and what still needs Windows acceptance.

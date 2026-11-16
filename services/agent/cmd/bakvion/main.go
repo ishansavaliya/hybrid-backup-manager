@@ -6,12 +6,21 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/cloud"
 	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/core"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/license"
+	"github.com/ishansavaliya/hybrid-backup-manager/services/agent/internal/update"
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"syscall"
+	"time"
 )
+
+// version is set at build time: -ldflags "-X main.version=...".
+var version = "0.1.0"
 
 func main() {
 	if err := run(); err != nil {
@@ -28,6 +37,7 @@ func run() error {
 	password := flags.String("password-file", "", "private repository password file")
 	snapshot := flags.String("snapshot", "", "full snapshot ID")
 	target := flags.String("target", "", "new absolute restore directory")
+	server := flags.String("server", envOr("BAKVION_SERVER_URL", cloud.DefaultBaseURL), "account server base URL")
 	selection := flags.String("selection", "", "optional exact snapshot path")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
@@ -36,9 +46,16 @@ func run() error {
 	defer cancel()
 	args := flags.Args()
 	if len(args) != 1 {
-		return errors.New("usage: bakvion [flags] request|work|serve|service|recover|snapshots; flags precede command")
+		return errors.New("usage: bakvion [flags] request|work|serve|service|install|uninstall|recover|snapshots; flags precede command")
 	}
-	engine := core.Engine{Binary: *binary}
+	// Windows: read open files (Tally, Outlook) from a shadow copy.
+	switch args[0] {
+	case "install":
+		return installService()
+	case "uninstall":
+		return uninstallService()
+	}
+	engine := core.Engine{Binary: *binary, FSSnapshot: runtime.GOOS == "windows"}
 	if args[0] == "recover" || args[0] == "snapshots" {
 		d := core.Destination{Repository: *repo, PasswordFile: *password}
 		if args[0] == "snapshots" {
@@ -59,7 +76,22 @@ func run() error {
 		return err
 	}
 	defer store.DB.Close()
-	a := &core.Agent{Store: store, Engine: engine}
+	a := &core.Agent{Store: store, Engine: engine, Cloud: &cloud.Client{BaseURL: *server}, Clock: time.Now, AppVersion: version, MachineInfo: machineInfo}
+	if key, keyErr := license.DefaultPublicKey(); keyErr != nil {
+		// Without a verifiable key the agent stays signed out; restore keeps working.
+		switch args[0] {
+		case "request", "serve", "service":
+			fmt.Fprintln(os.Stderr, "warning: license public key unavailable; membership features are disabled:", keyErr)
+		}
+	} else {
+		a.LicenseKey = key
+	}
+	if args[0] == "service" {
+		// Only the installed service updates itself; CLI and dev runs never do.
+		if pub, keyErr := update.PublicKey(); keyErr == nil {
+			a.Updater = update.Client{PublicKey: pub, Dir: filepath.Join(filepath.Dir(*state), "updates")}
+		}
+	}
 	switch args[0] {
 	case "request":
 		var req core.Request

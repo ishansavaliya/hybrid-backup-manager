@@ -576,3 +576,40 @@ input.search {
     gap: 15px;
   }
 }
+.code-boxes {
+  gap: 8px;
+}
+.code-box {
+  width: 44px;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+}
+.badge-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+.expert-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .expert-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.expert-cta {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  text-align: center;
+}

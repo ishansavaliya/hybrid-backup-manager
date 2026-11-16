@@ -16,21 +16,74 @@ import (
 	"strings"
 )
 
-type Engine struct{ Binary string }
+type Engine struct {
+	Binary string
+	// FSSnapshot reads sources from a Windows shadow copy (VSS), so files
+	// kept open by other programs (Tally, Outlook, databases) are backed up.
+	FSSnapshot bool
+}
+
+// BackupResult is a confirmed snapshot plus anything the client should know.
+type BackupResult struct {
+	Snapshot string
+	Warnings []string
+}
+
+// Backup warnings shown in History and in email reports.
+const (
+	WarnNoShadowCopy = "Backed up without a Windows snapshot; files open in other programs may be skipped"
+	WarnShadowFailed = "Windows snapshot unavailable for a drive; open files were read directly"
+	WarnUnreadable   = "Some files could not be read and were skipped"
+)
 
 // No shell is used. Provider and password environment injection is deliberately removed.
+// A managed key (d.password) is handed to restic only through this child's
+// environment; a password file must pass the private-file checks.
 func (e Engine) command(ctx context.Context, d Destination, args ...string) (*exec.Cmd, error) {
-	if err := validateSecretFile(d.PasswordFile); err != nil {
-		return nil, err
+	base := []string{"--repo", d.Repository, "--json", "--no-cache"}
+	switch {
+	case d.PasswordFile != "":
+		if err := validateSecretFile(d.PasswordFile); err != nil {
+			return nil, err
+		}
+		base = append(base, "--password-file", d.PasswordFile)
+	case d.password == "":
+		return nil, errors.New("destination key unavailable")
 	}
-	cmd := exec.CommandContext(ctx, e.Binary, append([]string{"--repo", d.Repository, "--password-file", d.PasswordFile, "--json", "--no-cache"}, args...)...)
+	cmd := exec.CommandContext(ctx, e.Binary, append(base, args...)...)
 	for _, v := range os.Environ() {
 		key := strings.SplitN(v, "=", 2)[0]
 		if !strings.HasPrefix(key, "RESTIC_") && !strings.HasPrefix(key, "RCLONE_") {
 			cmd.Env = append(cmd.Env, v)
 		}
 	}
+	if d.PasswordFile == "" {
+		cmd.Env = append(cmd.Env, "RESTIC_PASSWORD="+d.password)
+	}
 	return cmd, nil
+}
+
+// Forget applies the plan's retention to its own snapshots and prunes data
+// no longer referenced. The newest snapshot is always kept.
+func (e Engine) Forget(ctx context.Context, d Destination, planID string, r Retention) error {
+	if !r.Enabled {
+		return nil
+	}
+	if err := ValidateRetention(r); err != nil {
+		return err
+	}
+	args := []string{"forget", "--tag", "bakvion-plan:" + planID, "--keep-last", "1", "--prune"}
+	if r.Daily > 0 {
+		args = append(args, "--keep-daily", fmt.Sprint(r.Daily))
+	}
+	if r.Weekly > 0 {
+		args = append(args, "--keep-weekly", fmt.Sprint(r.Weekly))
+	}
+	if r.Monthly > 0 {
+		args = append(args, "--keep-monthly", fmt.Sprint(r.Monthly))
+	}
+	_, err := e.run(ctx, d, args...)
+	return err
 }
 
 type boundedBuffer struct{ bytes.Buffer }
@@ -89,7 +142,34 @@ func (e Engine) Init(ctx context.Context, d Destination) error {
 	return err
 }
 func (e Engine) Backup(ctx context.Context, d Destination, p Plan) (string, error) {
+	r, err := e.BackupDetailed(ctx, d, p)
+	return r.Snapshot, err
+}
+
+// BackupDetailed runs one backup. With FSSnapshot, a run that fails because
+// the shadow copy cannot be used is retried once without it. Restic exit code
+// 3 (snapshot made, some files unreadable) counts as success with a warning.
+func (e Engine) BackupDetailed(ctx context.Context, d Destination, p Plan) (BackupResult, error) {
+	r, diag, err := e.backupOnce(ctx, d, p, e.FSSnapshot)
+	if err != nil && e.FSSnapshot && ctx.Err() == nil && shadowProblem(diag) {
+		r, _, err = e.backupOnce(ctx, d, p, false)
+		if err == nil {
+			r.Warnings = append([]string{WarnNoShadowCopy}, r.Warnings...)
+		}
+	}
+	return r, err
+}
+
+func shadowProblem(diag string) bool {
+	d := strings.ToLower(diag)
+	return strings.Contains(d, "vss") || strings.Contains(d, "fs-snapshot") || strings.Contains(d, "shadow")
+}
+
+func (e Engine) backupOnce(ctx context.Context, d Destination, p Plan, shadow bool) (BackupResult, string, error) {
 	args := []string{"backup", "--tag", "bakvion-plan:" + p.ID}
+	if shadow {
+		args = append(args, "--use-fs-snapshot")
+	}
 	for _, x := range p.Exclusions {
 		args = append(args, "--exclude", x)
 	}
@@ -106,26 +186,27 @@ func (e Engine) Backup(ctx context.Context, d Destination, p Plan) (string, erro
 	for _, source := range p.Sources {
 		rel, err := filepath.Rel(base, source)
 		if err != nil {
-			return "", errors.New("sources on different volumes require separate plans in this milestone")
+			return BackupResult{}, "", errors.New("sources on different volumes require separate plans in this milestone")
 		}
 		relative = append(relative, rel)
 	}
 	args = append(args, relative...)
 	cmd, err := e.command(ctx, d, args...)
 	if err != nil {
-		return "", err
+		return BackupResult{}, "", err
 	}
 	cmd.Dir = base
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return BackupResult{}, "", err
 	}
 	var diagnostic boundedBuffer
 	cmd.Stderr = &diagnostic
 	if err = cmd.Start(); err != nil {
-		return "", err
+		return BackupResult{}, "", err
 	}
 	var snapshot string
+	var events boundedBuffer
 	scan := bufio.NewScanner(stdout)
 	scan.Buffer(make([]byte, 65536), 4*1024*1024)
 	for scan.Scan() {
@@ -133,8 +214,13 @@ func (e Engine) Backup(ctx context.Context, d Destination, p Plan) (string, erro
 			Type     string `json:"message_type"`
 			Snapshot string `json:"snapshot_id"`
 		}
-		if json.Unmarshal(scan.Bytes(), &event) == nil && event.Type == "summary" {
-			snapshot = event.Snapshot
+		if json.Unmarshal(scan.Bytes(), &event) == nil {
+			switch event.Type {
+			case "summary":
+				snapshot = event.Snapshot
+			case "error", "exit_error":
+				_, _ = events.Write(append(scan.Bytes(), '\n'))
+			}
 		}
 	}
 	scanErr := scan.Err()
@@ -142,17 +228,28 @@ func (e Engine) Backup(ctx context.Context, d Destination, p Plan) (string, erro
 		_ = cmd.Process.Kill()
 	}
 	err = cmd.Wait()
+	diag := diagnostic.String() + events.String()
 	if scanErr != nil {
-		return "", scanErr
+		return BackupResult{}, diag, scanErr
+	}
+	result := BackupResult{Snapshot: snapshot}
+	if strings.Contains(strings.ToLower(diag), "failed to create snapshot") {
+		result.Warnings = append(result.Warnings, WarnShadowFailed)
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 3 && snapshotIdentifier.MatchString(snapshot) {
+		result.Warnings = append(result.Warnings, WarnUnreadable)
+		return result, diag, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("backup failed (%v); no retention performed", err)
+		return BackupResult{}, diag, fmt.Errorf("backup failed (%v); no retention performed", err)
 	}
 	if !snapshotIdentifier.MatchString(snapshot) {
-		return "", errors.New("restic did not confirm snapshot completion")
+		return BackupResult{}, diag, errors.New("restic did not confirm snapshot completion")
 	}
-	return snapshot, nil
+	return result, diag, nil
 }
+
 func (e Engine) Snapshots(ctx context.Context, d Destination) ([]Snapshot, error) {
 	b, err := e.run(ctx, d, "snapshots")
 	if err != nil {

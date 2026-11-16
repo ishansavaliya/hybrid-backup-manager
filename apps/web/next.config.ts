@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
   experimental: { useTypeScriptCli: false },
-  transpilePackages: ["@bakvion/ui", "@bakvion/shared-types"],
+  transpilePackages: ["@bakvion/ui", "@bakvion/shared-types", "@bakvion/i18n"],
   poweredByHeader: false,
   async headers() {
     return [

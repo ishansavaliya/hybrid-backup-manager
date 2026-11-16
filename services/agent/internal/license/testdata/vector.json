@@ -1,0 +1,15 @@
+{
+  "publicKey": "ZsqJo21H0XLKUS49NHc6XBERkChKzsJ9+aNMX0a0AJc=",
+  "token": "eyJ2IjoxLCJjbGllbnRJZCI6IjExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NSIsImNsaWVudE5hbWUiOiJBY21lIFRyYWRlcnMiLCJkZXZpY2VJZCI6ImRldi1hYmMtMTIzIiwic3RhdHVzIjoiYWN0aXZlIiwibW9kZSI6ImZ1bGwiLCJleHBpcmVzQXQiOiIyMDMwLTAxLTMxVDIzOjU5OjU5KzA1OjMwIiwiaXNzdWVkQXQiOiIyMDI2LTExLTEwVDEwOjAwOjAwLjAwMFoiLCJyZW5ld0NvbnRhY3QiOiJzdXBwb3J0QGV4YW1wbGUuY29tIn0.9TDeCKYsrlj6UQvWS41HHf-c9aGkpb_2oI1Uyu2BVcAcgR-Vk-pLovppkF2Fj3WsORA3bN1-sl7By3aCVEW4Dg",
+  "payload": {
+    "v": 1,
+    "clientId": "11111111-2222-3333-4444-555555555555",
+    "clientName": "Acme Traders",
+    "deviceId": "dev-abc-123",
+    "status": "active",
+    "mode": "full",
+    "expiresAt": "2030-01-31T23:59:59+05:30",
+    "issuedAt": "2026-11-10T10:00:00.000Z",
+    "renewContact": "support@example.com"
+  }
+}

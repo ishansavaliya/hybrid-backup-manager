@@ -36,11 +36,13 @@ export function Modal({
   open,
   onOpenChange,
   title,
+  description = "Configure a local encrypted, file-level backup.",
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  description?: string;
   children: ReactNode;
 }) {
   return (
@@ -50,7 +52,7 @@ export function Modal({
         <Dialog.Content className="modal">
           <Dialog.Title>{title}</Dialog.Title>
           <Dialog.Description className="muted">
-            Configure a local encrypted, file-level backup.
+            {description}
           </Dialog.Description>
           <Dialog.Close
             className="icon-button modal-close"
