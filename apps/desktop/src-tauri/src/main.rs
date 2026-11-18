@@ -12,8 +12,19 @@ async fn agent_request(request: Value) -> Result<Value, String> {
 fn pipe_request(request: Value) -> Result<Value, String> {
     use std::{fs::OpenOptions, io::{BufRead, BufReader, Read, Write}, os::windows::io::AsRawHandle};
     use windows_sys::Win32::{System::{Pipes::GetNamedPipeServerProcessId, Services::{OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, CloseServiceHandle, SC_MANAGER_CONNECT, SERVICE_QUERY_STATUS, SC_STATUS_PROCESS_INFO, SERVICE_STATUS_PROCESS}}, Foundation::HANDLE};
-    let mut pipe = OpenOptions::new().read(true).write(true).open(r"\\.\pipe\Bakvion.v1")
-        .map_err(|_| "BakvionService is unavailable or access was denied. Start the installed service.".to_string())?;
+    let mut pipe = {
+        let mut attempt = 0;
+        loop {
+            match OpenOptions::new().read(true).write(true).open(r"\\.\pipe\Bakvion.v1") {
+                Ok(p) => break p,
+                Err(e) if e.raw_os_error() == Some(231) && attempt < 200 => {
+                    attempt += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(15));
+                }
+                Err(_) => return Err("BakvionService is unavailable or access was denied. Start the installed service.".to_string()),
+            }
+        }
+    };
     // Reject a squatted pipe: its server must be the SCM-registered service process.
     unsafe {
         let mut server_pid = 0;

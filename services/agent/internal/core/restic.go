@@ -139,6 +139,9 @@ func (e Engine) Init(ctx context.Context, d Destination) error {
 		return err
 	}
 	_, err = e.run(ctx, d, "init", "--repository-version", "2")
+	if err == nil && !DefaultEncrypted {
+		hideResticDirs(repo)
+	}
 	return err
 }
 func (e Engine) Backup(ctx context.Context, d Destination, p Plan) (string, error) {
@@ -156,6 +159,9 @@ func (e Engine) BackupDetailed(ctx context.Context, d Destination, p Plan) (Back
 		if err == nil {
 			r.Warnings = append([]string{WarnNoShadowCopy}, r.Warnings...)
 		}
+	}
+	if err == nil && !p.Encrypted {
+		_ = syncPlainCopy(d.Repository, p)
 	}
 	return r, err
 }

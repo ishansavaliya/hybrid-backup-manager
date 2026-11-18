@@ -106,10 +106,18 @@ func (a *Agent) dropKey(d Destination) error {
 // key made here is removed again when init fails (for example, the folder
 // already holds a backup made with another key), so it never lingers.
 func (a *Agent) SetUpDestination(ctx context.Context, d Destination) error {
-	_, err := a.withKey(d, false)
+	existing, err := a.withKey(d, false)
 	fresh := errors.Is(err, ErrKeyMissing)
 	if err != nil && !fresh {
 		return err
+	}
+	if !fresh {
+		if _, snapErr := a.Engine.Snapshots(ctx, existing); snapErr == nil {
+			if !DefaultEncrypted {
+				hideResticDirs(d.Repository)
+			}
+			return nil
+		}
 	}
 	if d, err = a.withKey(d, true); err != nil {
 		return err

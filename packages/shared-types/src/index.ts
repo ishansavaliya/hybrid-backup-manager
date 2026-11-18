@@ -30,6 +30,8 @@ export interface Plan {
   destinations: Destination[];
   schedule: Schedule;
   retention: Retention;
+  /** False by default: also copies files in normal readable format. */
+  encrypted?: boolean;
   /** Opened from another PC: restore only, never backed up to. */
   restoreOnly?: boolean;
 }

@@ -131,7 +131,9 @@
       "dark": "डार्क थीम",
       "language": "भाषा",
       "connected": "सर्विस चल रही है",
-      "disconnected": "सर्विस नहीं चल रही"
+      "disconnected": "सर्विस नहीं चल रही",
+      "online": "इंटरनेट चालू है",
+      "offline": "इंटरनेट बंद है"
     },
     "common": {
       "cancel": "रद्द करें",

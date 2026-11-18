@@ -131,7 +131,9 @@
       "dark": "ડાર્ક થીમ",
       "language": "ભાષા",
       "connected": "સર્વિસ ચાલુ છે",
-      "disconnected": "સર્વિસ ચાલુ નથી"
+      "disconnected": "સર્વિસ ચાલુ નથી",
+      "online": "ઇન્ટરનેટ ચાલુ છે",
+      "offline": "ઇન્ટરનેટ બંધ છે"
     },
     "common": {
       "cancel": "રદ કરો",

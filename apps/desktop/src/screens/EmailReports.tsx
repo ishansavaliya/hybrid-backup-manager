@@ -37,15 +37,17 @@ export function EmailReports({
         if (!live) return;
         setMode(r.mode);
         setEmails(r.emails.length ? r.emails : [""]);
-        setLoaded(true);
       })
       .catch(() => {
-        /* no service: the card stays disabled */
+        /* defaults kept so user can still edit and save */
+      })
+      .finally(() => {
+        if (live) setLoaded(true);
       });
     return () => {
       live = false;
     };
-  }, []);
+  }, [signedIn]);
 
   const filled = emails.map((e) => e.trim()).filter(Boolean);
   const valid = filled.every((e) => EMAIL.test(e));

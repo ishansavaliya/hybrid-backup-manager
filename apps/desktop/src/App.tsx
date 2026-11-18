@@ -100,13 +100,11 @@ function Main({
   const acct = account.status;
   const paused = !acct || acct.mode !== "full";
   const accountError = errorText(t, account.error);
+  const signedOut = acct
+    ? acct.mode === "signed_out"
+    : data?.status.mode === "signed_out";
 
-  if (
-    acct &&
-    acct.mode === "signed_out" &&
-    data &&
-    (!plans.length || showSignIn)
-  )
+  if (signedOut && data && (!plans.length || showSignIn))
     return (
       <SignIn
         error={accountError}
@@ -116,6 +114,8 @@ function Main({
         onCancel={plans.length ? () => setShowSignIn(false) : undefined}
       />
     );
+
+  if (loading && "__TAURI_INTERNALS__" in window) return null;
 
   const header: Record<Tab, { title: string; subtitle: string }> = {
     overview: { title: t.overview.title, subtitle: t.overview.subtitle },

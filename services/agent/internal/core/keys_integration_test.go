@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -151,7 +152,7 @@ func TestRecoveryKitFileIsPrivate(t *testing.T) {
 	}
 	path := r.Result.(map[string]string)["path"]
 	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || info.Size() == 0 || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("kit file: %v %v", info, err)
 	}
 	if r := pipe(t, a, "exportRecoveryKit", map[string]string{"directory": "relative"}); r.Error == nil {
@@ -174,3 +175,29 @@ func TestRealRunQueuesEmailReport(t *testing.T) {
 		t.Fatalf("report: %+v", r)
 	}
 }
+
+func TestPlainCopyDefaultAndEncryptedSwitch(t *testing.T) {
+	a, p := managedFixture(t)
+	var enc int
+	if err := a.Store.DB.QueryRow(`SELECT encrypted FROM backup_plans_cache WHERE id=?`, p.ID).Scan(&enc); err != nil || enc != 0 {
+		t.Fatalf("default encrypted column should be 0 (false): %d %v", enc, err)
+	}
+	ids := map[string]string{"planId": p.ID, "destinationId": "local"}
+	if r := pipe(t, a, "initRepository", ids); r.Error != nil {
+		t.Fatalf("set up: %+v", r.Error)
+	}
+	// Clicking Set up a second time on an already-initialized destination succeeds idempotently.
+	if r := pipe(t, a, "initRepository", ids); r.Error != nil {
+		t.Fatalf("idempotent set up: %+v", r.Error)
+	}
+	job := backupOnce(t, a, p)
+	if job.State != "succeeded" {
+		t.Fatalf("backup: %+v", job)
+	}
+	plainFile := filepath.Join(p.Destinations[0].Repository, filepath.Base(p.Sources[0]), "ledger.txt")
+	b, err := os.ReadFile(plainFile)
+	if err != nil || string(b) != "version one" {
+		t.Fatalf("plain readable copy missing at %s: %q %v", plainFile, string(b), err)
+	}
+}
+

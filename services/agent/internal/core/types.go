@@ -41,6 +41,11 @@ type Retention struct {
 	Weekly  int  `json:"weekly"`
 	Monthly int  `json:"monthly"`
 }
+
+// DefaultEncrypted controls whether backups store only encrypted restic chunks (true)
+// or also write normal readable files directly into the destination folder (false).
+const DefaultEncrypted = false
+
 type Plan struct {
 	ID           string        `json:"id"`
 	Name         string        `json:"name"`
@@ -49,6 +54,7 @@ type Plan struct {
 	Destinations []Destination `json:"destinations"`
 	Schedule     Schedule      `json:"schedule"`
 	Retention    Retention     `json:"retention"`
+	Encrypted    bool          `json:"encrypted"`
 	// RestoreOnly marks a backup opened from another PC (no source folders
 	// here): it can be browsed and restored, never backed up to.
 	RestoreOnly bool `json:"restoreOnly,omitempty"`

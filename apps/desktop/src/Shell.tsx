@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   Database,
@@ -39,6 +39,19 @@ export function Shell({
   children: ReactNode;
 }) {
   const { t } = useI18n();
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
   return (
     <div className="gx-shell gx-app">
       <aside className="gx-rail" aria-label={t.nav.main}>
@@ -71,6 +84,10 @@ export function Shell({
             {badges}
             <span className="gx-conn" data-ok={connected}>
               {connected ? t.top.connected : t.top.disconnected}
+            </span>
+            <span className="gx-topbar__divider" aria-hidden="true" />
+            <span className="gx-conn" data-ok={online}>
+              {online ? t.top.online : t.top.offline}
             </span>
             <span className="gx-topbar__divider" aria-hidden="true" />
             <LanguageSwitch />

@@ -221,7 +221,7 @@ export function Plans({
                       <Button
                         variant="secondary"
                         size="sm"
-                        disabled={busy}
+                        disabled={busy || running}
                         onClick={() =>
                           void act(async () => {
                             await request("testDestination", params);
@@ -235,7 +235,7 @@ export function Plans({
                         <Button
                           variant="secondary"
                           size="sm"
-                          disabled={busy || paused}
+                          disabled={busy || paused || running}
                           onClick={() => setInitFor(params)}
                         >
                           {p.init}
@@ -245,7 +245,7 @@ export function Plans({
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={busy}
+                          disabled={busy || running}
                           onClick={() => {
                             setKey("");
                             setConnectFor(params);
@@ -257,7 +257,7 @@ export function Plans({
                       <Button
                         variant="secondary"
                         size="sm"
-                        disabled={busy}
+                        disabled={busy || running}
                         onClick={() =>
                           void act(async () => {
                             await request("check", params);

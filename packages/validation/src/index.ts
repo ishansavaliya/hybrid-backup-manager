@@ -52,4 +52,5 @@ export const planSchema = z.object({
     .max(16),
   schedule: scheduleSchema.default(defaultSchedule),
   retention: retentionSchema.default(defaultRetention),
+  encrypted: z.boolean().default(false),
 });
