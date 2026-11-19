@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   openGraph: { title: t.title, description: t.description, type: "website" },
 };
 
+export const revalidate = 300;
+
 export default function Page() {
   return <Landing lang="gu" />;
 }
