@@ -1,10 +1,10 @@
-import { Download, KeyRound, RefreshCw, Server } from "lucide-react";
+import { Download, KeyRound, Play, RefreshCw, Server } from "lucide-react";
 import type { AccountStatus, KitStatus } from "@bakvion/shared-types";
 import { AccountPanel } from "../account/AccountPanel";
 import { choose, request } from "../api";
 import { format, LANG_NAME, LANGS, useI18n, type Lang } from "../i18n";
 import type { ThemePref } from "../theme";
-import { Button, Card, CardHeader, Field, Notice, Segmented } from "../ui";
+import { Badge, Button, Card, CardHeader, Field, Notice, Segmented } from "../ui";
 import { AboutUpdates } from "./AboutUpdates";
 import { EmailReports } from "./EmailReports";
 
@@ -15,7 +15,9 @@ export function Settings({
   onSignOut,
   themePref,
   onThemePref,
+  serviceConnected,
   onRefreshService,
+  onStartService,
   kit,
   serviceVersion,
   busy,
@@ -28,7 +30,9 @@ export function Settings({
   onSignOut: () => Promise<boolean>;
   themePref: ThemePref;
   onThemePref: (p: ThemePref) => void;
+  serviceConnected: boolean;
   onRefreshService: () => void | Promise<void>;
+  onStartService: () => void | Promise<void>;
   kit: KitStatus | undefined;
   serviceVersion: string;
   busy: boolean;
@@ -130,15 +134,27 @@ export function Settings({
           <CardHeader
             title={s.service}
             actions={
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void onRefreshService()}
-              >
-                <RefreshCw size={14} aria-hidden="true" />
-                {s.refresh}
-              </Button>
+              <div style={{ display: "flex", gap: 8 }}>
+                {!serviceConnected ? (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void onStartService()}
+                  >
+                    <Play size={14} aria-hidden="true" />
+                    Start service
+                  </Button>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void onRefreshService()}
+                >
+                  <RefreshCw size={14} aria-hidden="true" />
+                  {s.refresh}
+                </Button>
+              </div>
             }
           />
           <p className="gx-muted" style={{ display: "flex", gap: 10 }}>
@@ -146,6 +162,14 @@ export function Settings({
             {s.serviceBody}
           </p>
           <dl className="gx-kv-list" style={{ marginTop: 12 }}>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <Badge tone={serviceConnected ? "success" : "danger"} dot>
+                  {serviceConnected ? "Running" : "Stopped"}
+                </Badge>
+              </dd>
+            </div>
             <div>
               <dt>Windows Service</dt>
               <dd className="gx-tabular">BakvionService</dd>

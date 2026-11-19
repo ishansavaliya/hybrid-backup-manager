@@ -8,6 +8,37 @@ async fn agent_request(request: Value) -> Result<Value, String> {
         .await.map_err(|_| "Agent bridge task failed".to_string())?
 }
 
+#[tauri::command]
+async fn start_service() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(start_windows_service)
+        .await.map_err(|_| "Could not start service task".to_string())?
+}
+
+#[cfg(windows)]
+fn start_windows_service() -> Result<String, String> {
+    use std::process::Command;
+    let status = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            "Start-Process sc.exe -ArgumentList 'start BakvionService' -Verb RunAs -Wait -WindowStyle Hidden",
+        ])
+        .status()
+        .map_err(|_| "Could not launch administrator prompt to start BakvionService.".to_string())?;
+    if !status.success() {
+        return Err("Starting BakvionService was cancelled or failed.".to_string());
+    }
+    std::thread::sleep(std::time::Duration::from_millis(1200));
+    Ok("BakvionService start requested.".to_string())
+}
+
+#[cfg(not(windows))]
+fn start_windows_service() -> Result<String, String> {
+    Err("Starting BakvionService is only supported on Windows.".to_string())
+}
+
 #[cfg(windows)]
 fn pipe_request(request: Value) -> Result<Value, String> {
     use std::{fs::OpenOptions, io::{BufRead, BufReader, Read, Write}, os::windows::io::AsRawHandle};
@@ -56,7 +87,7 @@ fn pipe_request(_: Value) -> Result<Value, String> { Err("The service bridge req
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![agent_request])
+        .invoke_handler(tauri::generate_handler![agent_request, start_service])
         .run(tauri::generate_context!())
         .expect("Bakvion desktop runtime failed");
 }

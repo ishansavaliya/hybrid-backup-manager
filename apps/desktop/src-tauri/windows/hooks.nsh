@@ -3,10 +3,12 @@
 ; Backups, keys and settings in C:\ProgramData\Bakvion are never deleted.
 
 !macro NSIS_HOOK_PREINSTALL
-  ; Stop the running service (an update) so its files can be replaced.
+  ; Close any running desktop window and stop the service so files can be replaced cleanly.
+  nsExec::Exec 'taskkill.exe /F /IM Bakvion.exe'
+  Pop $0
   nsExec::Exec 'sc.exe stop BakvionService'
   Pop $0
-  Sleep 4000
+  Sleep 3000
   nsExec::Exec 'taskkill.exe /F /IM BakvionService.exe'
   Pop $0
 !macroend

@@ -32,3 +32,12 @@ export async function choose(directory: boolean): Promise<string | null> {
   const result = await open({ directory, multiple: false });
   return typeof result === "string" ? result : null;
 }
+export async function startService(): Promise<string> {
+  if (!("__TAURI_INTERNALS__" in window))
+    throw new AgentRequestError(
+      "NO_RUNTIME",
+      "Windows desktop runtime required. This browser view has no access to the backup service.",
+    );
+  const { invoke } = await import("@tauri-apps/api/core");
+  return await invoke<string>("start_service");
+}

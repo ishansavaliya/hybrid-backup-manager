@@ -27,7 +27,7 @@ import (
 
 // PublicKeyBase64 verifies update manifests (raw 32-byte Ed25519 key).
 // Overridable with -ldflags "-X .../update.PublicKeyBase64=...".
-var PublicKeyBase64 = "ysMY2axfe8432UeTwCxULyCUFzDtw2JSIO49c9xg5aU="
+var PublicKeyBase64 = "9VS4fiF7xkh8XH2gE0FWeNIRz3zhCQB5PT9uJuE5Y0Q="
 
 // ManifestURL always points at the newest release.
 var ManifestURL = "https://github.com/ishansavaliya/bakvion-releases/releases/latest/download/latest.json"

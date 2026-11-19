@@ -20,7 +20,7 @@ export function formatSize(bytes: number): string {
 
 export async function latestRelease(): Promise<Release | null> {
   try {
-    const res = await fetch(LATEST_JSON, { next: { revalidate: 3600 } });
+    const res = await fetch(LATEST_JSON, { next: { revalidate: 300 } });
     if (!res.ok) return null;
     const m = (await res.json()) as { version?: unknown; size?: unknown };
     if (typeof m.version !== "string" || !/^\d+\.\d+\.\d+$/.test(m.version))

@@ -53,8 +53,15 @@ func TestUpdatesInstallOnlyNewerAndOnlyWhenIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Idle: installs, and does not start a second installer while it runs.
-	r := e.call(t, "checkForUpdates", nil)
+	// Check only: reports available without installing.
+	if r := e.call(t, "checkForUpdates", nil); r.Error != nil {
+		t.Fatalf("check: %+v", r.Error)
+	} else if st = r.Result.(UpdateStatus); !st.Available || st.Installing != "" || len(u.launched) != 0 {
+		t.Fatalf("check should not auto-install: %+v %v", st, u.launched)
+	}
+
+	// Idle + explicit installUpdate: installs, and does not start a second installer while it runs.
+	r := e.call(t, "installUpdate", nil)
 	if r.Error != nil {
 		t.Fatalf("check: %+v", r.Error)
 	}
