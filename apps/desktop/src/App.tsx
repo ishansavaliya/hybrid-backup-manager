@@ -266,7 +266,14 @@ function Main({
           <Settings
             status={acct}
             accountError={accountError}
-            onSync={account.syncNow}
+            onSync={async () => {
+              const ok = await account.syncNow();
+              if (ok) {
+                setError(null);
+                setMessage("Account synced successfully.");
+              }
+              return ok;
+            }}
             onSignOut={account.signOut}
             themePref={themePref}
             onThemePref={onThemePref}
