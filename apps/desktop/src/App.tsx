@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, RefreshCw, WifiOff } from "lucide-react";
+import { Play, Plus, RefreshCw, WifiOff } from "lucide-react";
 import type { AgentOverview } from "@bakvion/shared-types";
-import { request } from "./api";
+import { request, startService } from "./api";
 import { useAccount } from "./account/useAccount";
 import { SignIn } from "./account/SignIn";
 import { MembershipBadge } from "./account/MembershipBadge";
@@ -199,10 +199,32 @@ function Main({
               icon={<WifiOff size={20} />}
               title={t.disconnected.title}
               action={
-                <Button variant="secondary" onClick={() => void refresh()}>
-                  <RefreshCw size={15} aria-hidden="true" />
-                  {t.disconnected.reconnect}
-                </Button>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  {"__TAURI_INTERNALS__" in window ? (
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void act(async () => {
+                          await startService();
+                          const res = await refresh();
+                          if (res) {
+                            await account.reload();
+                            setMessage(
+                              `BakvionService started (v${res.status.version}).`,
+                            );
+                          }
+                        })
+                      }
+                    >
+                      <Play size={15} aria-hidden="true" />
+                      Start service
+                    </Button>
+                  ) : null}
+                  <Button variant="secondary" onClick={() => void refresh()}>
+                    <RefreshCw size={15} aria-hidden="true" />
+                    {t.disconnected.reconnect}
+                  </Button>
+                </div>
               }
             >
               {t.disconnected.body}
@@ -277,6 +299,25 @@ function Main({
             onSignOut={account.signOut}
             themePref={themePref}
             onThemePref={onThemePref}
+            serviceConnected={!!data}
+            onStartService={() =>
+              void act(async () => {
+                await startService();
+                const res = await refresh();
+                if (res) {
+                  await account.reload();
+                  setMessage(
+                    `BakvionService started (v${res.status.version}).`,
+                  );
+                } else {
+                  setError({
+                    code: "SERVICE_OFF",
+                    message:
+                      "BakvionService could not start. Check Windows Services.",
+                  });
+                }
+              })
+            }
             onRefreshService={async () => {
               const res = await refresh();
               if (res) {

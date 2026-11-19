@@ -126,8 +126,8 @@ func (a *Agent) CheckForUpdate(ctx context.Context, install bool) (UpdateStatus,
 	return a.UpdateStatus()
 }
 
-// UpdateLoop checks shortly after start, then every 6 hours (sooner after a
-// failure or while a backup runs). Development builds never auto-update.
+// UpdateLoop checks shortly after start, then every 6 hours, without
+// auto-installing: the user chooses when to install from the update popup.
 func (a *Agent) UpdateLoop(ctx context.Context) {
 	wait := updateFirstWait
 	for {
@@ -136,7 +136,7 @@ func (a *Agent) UpdateLoop(ctx context.Context) {
 			return
 		case <-time.After(wait):
 		}
-		st, err := a.CheckForUpdate(ctx, true)
+		st, err := a.CheckForUpdate(ctx, false)
 		switch {
 		case err != nil || (st.Error != "" && st.Error != errBusy.Error()):
 			wait = updateRetry
@@ -149,8 +149,12 @@ func (a *Agent) UpdateLoop(ctx context.Context) {
 }
 
 func (a *Agent) handleUpdates(ctx context.Context, r Request) (any, error) {
-	if r.Method == "checkForUpdates" {
+	switch r.Method {
+	case "checkForUpdates":
+		return a.CheckForUpdate(ctx, false)
+	case "installUpdate":
 		return a.CheckForUpdate(ctx, true)
+	default:
+		return a.UpdateStatus()
 	}
-	return a.UpdateStatus()
 }

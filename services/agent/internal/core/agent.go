@@ -303,7 +303,7 @@ func (a *Agent) handle(ctx context.Context, r Request) (any, error) {
 			return nil, err
 		}
 		return map[string]bool{"deleted": true}, a.DeletePlan(p.PlanID)
-	case "updateStatus", "checkForUpdates":
+	case "updateStatus", "checkForUpdates", "installUpdate":
 		return a.handleUpdates(ctx, r)
 	case "findGoogleDrive":
 		return map[string]any{"folders": FindGoogleDrive()}, nil
