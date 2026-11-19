@@ -243,6 +243,7 @@ test("connect existing backup sends the recovery-kit key", async ({ page }) => {
   await mock(page, { plans: [plan] });
   await page.goto("/");
   await page.getByRole("button", { name: "Backup plans", exact: true }).click();
+  await page.getByRole("button", { name: "Manage" }).click();
   await page.getByRole("button", { name: "Connect existing" }).click();
   const dialog = page.getByRole("dialog");
   await expect(
@@ -499,8 +500,11 @@ test("restore-only plans cannot be backed up or edited", async ({ page }) => {
   await expect(
     old.getByRole("button", { name: "Schedule & cleanup" }),
   ).toHaveCount(0);
-  await expect(old.getByRole("button", { name: "Set up" })).toHaveCount(0);
-  await expect(old.getByRole("button", { name: "Verify" })).toBeVisible();
+  await old.getByRole("button", { name: "Manage" }).click();
+  const tools = page.getByRole("dialog");
+  await expect(tools.getByRole("button", { name: "Set up" })).toHaveCount(0);
+  await expect(tools.getByRole("button", { name: "Verify" })).toBeVisible();
+  await tools.getByRole("button", { name: "Close" }).first().click();
   // Overview counts only this PC's own plan.
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(page.locator(".gx-tile").first()).toContainText("1");

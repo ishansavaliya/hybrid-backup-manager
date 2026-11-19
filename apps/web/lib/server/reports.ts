@@ -217,7 +217,10 @@ export function explain(r: Pick<ReportInput, "state" | "error">): {
     e.includes("cannot find") ||
     e.includes("unavailable") ||
     e.includes("not accessible") ||
-    e.includes("unable to open")
+    e.includes("unable to open") ||
+    e.includes("not connected") ||
+    e.includes("plug in") ||
+    e.includes("exit status 10")
   )
     return {
       reason: "The backup disk or folder could not be reached.",
@@ -225,6 +228,11 @@ export function explain(r: Pick<ReportInput, "state" | "error">): {
         "Connect the external disk and check it shows the same drive letter.",
         runAgain,
       ],
+    };
+  if (e.includes("currently using this disk") || e.includes("exit status 11"))
+    return {
+      reason: "Another backup or verification was already using this disk.",
+      steps: ["Wait a moment for it to finish, then click “Run backup” again."],
     };
   return {
     reason: "The backup could not finish.",
@@ -609,6 +617,28 @@ ${details([
 export interface ReportDeps {
   repo: Repo;
   mailer: Mailer | null;
+  /** Optional founder/admin address that receives every failed/interrupted backup alert. */
+  adminAlertEmail?: string;
+}
+
+function mergeRecipients(
+  runs: Pick<ReportInput, "state">[],
+  settings: ReportSettings,
+  adminAlertEmail?: string,
+): string[] {
+  const hasError = runs.some((r) => r.state !== "succeeded");
+  const out: string[] = [];
+  if (settings.mode !== "off") {
+    for (const e of settings.emails) {
+      if (!out.some((x) => x.toLowerCase() === e.toLowerCase())) out.push(e);
+    }
+  }
+  const admin = (adminAlertEmail ?? "").trim();
+  if (hasError && admin && EMAIL.test(admin)) {
+    if (!out.some((x) => x.toLowerCase() === admin.toLowerCase()))
+      out.push(admin);
+  }
+  return out;
 }
 
 async function contactFor(repo: Repo): Promise<string> {
@@ -718,12 +748,15 @@ export async function submitReports(
     return v ? [v] : [];
   });
   const added = await repo.addReports(device.id, client.id, parsed, ctx.now);
+  const adminEmail = (deps.adminAlertEmail ?? "").trim();
+  const hasAdminAlert = !!adminEmail && EMAIL.test(adminEmail);
   const now: ReportRecord[] = [];
   const digest: string[] = [];
   const skip: string[] = [];
   for (const r of added) {
     const where = routeReport(r, settings);
-    if (where === "now") now.push(r);
+    if (where === "now" || (r.state !== "succeeded" && hasAdminAlert))
+      now.push(r);
     else (where === "digest" ? digest : skip).push(r.id);
   }
   await repo.setReportEmailStatus(digest, "digest");
@@ -737,15 +770,25 @@ export async function submitReports(
         ? [
             {
               ids: now.map((r) => r.id),
+              runs: now,
               mail: summaryReportEmail(now, rc, "batch"),
             },
           ]
-        : now.map((r) => ({ ids: [r.id], mail: singleReportEmail(r, rc) }));
+        : now.map((r) => ({
+            ids: [r.id],
+            runs: [r],
+            mail: singleReportEmail(r, rc),
+          }));
     for (const g of groups) {
+      const recipients = mergeRecipients(g.runs, settings, adminEmail);
+      if (!recipients.length) {
+        await repo.setReportEmailStatus(g.ids, "skipped");
+        continue;
+      }
       const outcome = await deliver(
         d,
         device.id,
-        settings.emails,
+        recipients,
         g.mail,
         contact,
         ctx.now,

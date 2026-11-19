@@ -194,7 +194,21 @@ func TestPlainCopyDefaultAndEncryptedSwitch(t *testing.T) {
 	if job.State != "succeeded" {
 		t.Fatalf("backup: %+v", job)
 	}
-	plainFile := filepath.Join(p.Destinations[0].Repository, filepath.Base(p.Sources[0]), "ledger.txt")
+	entries, err := os.ReadDir(p.Destinations[0].Repository)
+	if err != nil {
+		t.Fatalf("read repo: %v", err)
+	}
+	var bkpDir string
+	for _, e := range entries {
+		if e.IsDir() && len(e.Name()) >= 4 && e.Name()[:4] == "bkp_" {
+			bkpDir = filepath.Join(p.Destinations[0].Repository, e.Name())
+			break
+		}
+	}
+	if bkpDir == "" {
+		t.Fatalf("expected unique bkp_YYYY-MM-DD_HH-MM-SS folder inside %s", p.Destinations[0].Repository)
+	}
+	plainFile := filepath.Join(bkpDir, filepath.Base(p.Sources[0]), "ledger.txt")
 	b, err := os.ReadFile(plainFile)
 	if err != nil || string(b) != "version one" {
 		t.Fatalf("plain readable copy missing at %s: %q %v", plainFile, string(b), err)

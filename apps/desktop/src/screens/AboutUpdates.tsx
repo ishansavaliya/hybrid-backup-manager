@@ -41,10 +41,12 @@ export function AboutUpdates({
   serviceVersion,
   busy,
   act,
+  notify,
 }: {
   serviceVersion: string;
   busy: boolean;
   act: (fn: () => Promise<void>) => Promise<void>;
+  notify: (m: string) => void;
 }) {
   const { t, relative, dateTime } = useI18n();
   const s = t.settings;
@@ -100,7 +102,25 @@ export function AboutUpdates({
             disabled={busy || !status}
             onClick={() =>
               void act(async () => {
-                setStatus(asStatus(await request<unknown>("checkForUpdates")));
+                const next = asStatus(
+                  await request<unknown>("checkForUpdates"),
+                );
+                setStatus(next);
+                if (!next) {
+                  notify(s.upToDate);
+                } else if (next.installing) {
+                  notify(format(s.installing, { v: next.installing }));
+                } else if (next.error.startsWith(OFFLINE)) {
+                  notify(s.updOffline);
+                } else if (next.error.startsWith(BUSY)) {
+                  notify(s.updBusy);
+                } else if (next.error) {
+                  notify(next.error);
+                } else if (next.available) {
+                  notify(format(s.updateAvailable, { v: next.latest }));
+                } else {
+                  notify(s.upToDate);
+                }
               })
             }
           >

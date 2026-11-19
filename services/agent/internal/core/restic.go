@@ -108,6 +108,29 @@ func (b *limitedOutput) Write(p []byte) (int, error) {
 	}
 	return b.Buffer.Write(p)
 }
+func friendlyResticError(err error, diag string, backup bool) error {
+	d := strings.ToLower(diag)
+	var exit *exec.ExitError
+	code := -1
+	if errors.As(err, &exit) {
+		code = exit.ExitCode()
+	}
+	switch {
+	case code == 10 || strings.Contains(d, "does not exist") || strings.Contains(d, "cannot find the path") || strings.Contains(d, "no such file") || strings.Contains(d, "is not a repository"):
+		return errors.New("External backup disk or folder is not connected. Plug in your backup drive and try again.")
+	case code == 11 || strings.Contains(d, "lock"):
+		return errors.New("Another backup or check is currently using this disk. Please wait a moment and try again.")
+	case code == 12 || strings.Contains(d, "wrong password") || strings.Contains(d, "no key found"):
+		return errors.New("The backup key does not match this backup folder. Check your recovery kit key and try again.")
+	case strings.Contains(d, "no space") || strings.Contains(d, "not enough space") || strings.Contains(d, "disk full"):
+		return errors.New("Your backup disk is full. Free up space on the disk or connect a larger drive and try again.")
+	case backup:
+		return errors.New("Backup could not complete. Make sure your backup disk is connected and accessible, then try again.")
+	default:
+		return errors.New("Could not access the backup folder. Make sure your backup disk is connected and try again.")
+	}
+}
+
 func (e Engine) run(ctx context.Context, d Destination, args ...string) ([]byte, error) {
 	cmd, err := e.command(ctx, d, args...)
 	if err != nil {
@@ -118,7 +141,7 @@ func (e Engine) run(ctx context.Context, d Destination, args ...string) ([]byte,
 	cmd.Stdout = &out
 	cmd.Stderr = &diagnostic
 	if err = cmd.Run(); err != nil {
-		return nil, fmt.Errorf("restic operation failed (%v); check repository availability, credentials, access and integrity", err)
+		return nil, friendlyResticError(err, diagnostic.String(), false)
 	}
 	return out.Bytes(), nil
 }
@@ -248,7 +271,7 @@ func (e Engine) backupOnce(ctx context.Context, d Destination, p Plan, shadow bo
 		return result, diag, nil
 	}
 	if err != nil {
-		return BackupResult{}, diag, fmt.Errorf("backup failed (%v); no retention performed", err)
+		return BackupResult{}, diag, friendlyResticError(err, diag, true)
 	}
 	if !snapshotIdentifier.MatchString(snapshot) {
 		return BackupResult{}, diag, errors.New("restic did not confirm snapshot completion")

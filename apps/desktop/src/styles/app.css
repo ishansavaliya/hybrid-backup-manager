@@ -106,6 +106,51 @@ textarea {
   background: var(--gx-success);
 }
 
+/* Floating toast notifications */
+.gx-toast-wrap {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 90;
+  display: grid;
+  gap: 10px;
+  width: min(440px, calc(100vw - 48px));
+  pointer-events: none;
+}
+.gx-toast-wrap > * {
+  pointer-events: auto;
+  box-shadow: var(--gx-shadow-pop);
+}
+.gx-tool-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--gx-line);
+  border-radius: 12px;
+  background: var(--gx-bg);
+}
+.gx-tool-row__info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.gx-tool-row__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gx-text);
+}
+.gx-tool-row__desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--gx-muted);
+}
+
 /* Overview */
 .gx-hero {
   display: grid;

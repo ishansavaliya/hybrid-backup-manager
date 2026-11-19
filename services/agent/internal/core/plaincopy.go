@@ -1,11 +1,13 @@
 package core
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var reservedResticNames = map[string]bool{
@@ -34,17 +36,37 @@ func excludedByPlan(rel string, name string, patterns []string) bool {
 	return false
 }
 
-// syncPlainCopy mirrors each source folder directly into repo in normal
-// readable format when p.Encrypted is false (DefaultEncrypted == false).
+// uniqueBackupDir creates a unique bkp_YYYY-MM-DD_HH-MM-SS folder inside repo.
+func uniqueBackupDir(repo string, now time.Time) (string, error) {
+	base := "bkp_" + now.Format("2006-01-02_15-04-05")
+	dir := filepath.Join(repo, base)
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return "", err
+			}
+			return dir, nil
+		}
+		dir = filepath.Join(repo, fmt.Sprintf("%s_%d", base, i))
+	}
+}
+
+// syncPlainCopy copies each source folder directly into a unique timestamped
+// folder (repo\bkp_YYYY-MM-DD_HH-MM-SS\<SourceFolder>\...) in normal readable
+// format when p.Encrypted is false (DefaultEncrypted == false).
 func syncPlainCopy(repo string, p Plan) error {
 	hideResticDirs(repo)
+	runDir, err := uniqueBackupDir(repo, time.Now())
+	if err != nil {
+		return err
+	}
 	for _, src := range p.Sources {
 		srcClean := filepath.Clean(src)
 		folderName := filepath.Base(srcClean)
 		if reservedResticNames[strings.ToLower(folderName)] {
 			folderName = folderName + "_files"
 		}
-		destRoot := filepath.Join(repo, folderName)
+		destRoot := filepath.Join(runDir, folderName)
 		if err := copyDirFiltered(srcClean, destRoot, p.Exclusions); err != nil {
 			return err
 		}
@@ -89,9 +111,6 @@ func copyFileAtomic(src, dst string) error {
 	defer in.Close()
 	info, err := in.Stat()
 	if err != nil {
-		return nil
-	}
-	if existing, err := os.Stat(dst); err == nil && existing.Size() == info.Size() && existing.ModTime().Equal(info.ModTime()) {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {

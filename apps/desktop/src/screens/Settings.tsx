@@ -28,7 +28,7 @@ export function Settings({
   onSignOut: () => Promise<boolean>;
   themePref: ThemePref;
   onThemePref: (p: ThemePref) => void;
-  onRefreshService: () => void;
+  onRefreshService: () => void | Promise<void>;
   kit: KitStatus | undefined;
   serviceVersion: string;
   busy: boolean;
@@ -89,7 +89,12 @@ export function Settings({
             ) : null}
           </div>
         </Card>
-        <AboutUpdates serviceVersion={serviceVersion} busy={busy} act={act} />
+        <AboutUpdates
+          serviceVersion={serviceVersion}
+          busy={busy}
+          act={act}
+          notify={notify}
+        />
       </div>
       <div className="gx-stack">
         <Card>
@@ -125,7 +130,12 @@ export function Settings({
           <CardHeader
             title={s.service}
             actions={
-              <Button variant="secondary" size="sm" onClick={onRefreshService}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => void onRefreshService()}
+              >
                 <RefreshCw size={14} aria-hidden="true" />
                 {s.refresh}
               </Button>
@@ -135,6 +145,16 @@ export function Settings({
             <Server size={18} aria-hidden="true" style={{ flex: "none" }} />
             {s.serviceBody}
           </p>
+          <dl className="gx-kv-list" style={{ marginTop: 12 }}>
+            <div>
+              <dt>Windows Service</dt>
+              <dd className="gx-tabular">BakvionService</dd>
+            </div>
+            <div>
+              <dt>Task Manager Process</dt>
+              <dd className="gx-tabular">BakvionService.exe</dd>
+            </div>
+          </dl>
         </Card>
         <EmailReports
           signedIn={!!status?.signedIn}
