@@ -197,6 +197,9 @@ func (a *Agent) next(ctx context.Context) (bool, error) {
 		var res BackupResult
 		res, err = a.Engine.BackupDetailed(ctx, dest, cfg.Plan)
 		snapshot = res.Snapshot
+		if res.Summary != "" {
+			noteList = append(noteList, res.Summary)
+		}
 		noteList = append(noteList, res.Warnings...)
 		for _, w := range res.Warnings {
 			partial = partial || w == WarnUnreadable

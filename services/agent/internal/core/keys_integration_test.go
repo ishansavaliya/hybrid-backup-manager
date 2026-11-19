@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -127,7 +128,7 @@ func TestRealRetentionCleansOldVersions(t *testing.T) {
 	backupOnce(t, a, p)
 	write(t, filepath.Join(p.Sources[0], "ledger.txt"), "version two")
 	job := backupOnce(t, a, p)
-	if job.State != "succeeded" || job.Notes != "Old versions cleaned up" {
+	if job.State != "succeeded" || !strings.Contains(job.Notes, "Old versions cleaned up") || !strings.Contains(job.Notes, "Data transferred:") {
 		t.Fatalf("second backup: %+v", job)
 	}
 	d, err := a.withKey(p.Destinations[0], false)

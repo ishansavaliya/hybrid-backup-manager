@@ -26,7 +26,21 @@ type Engine struct {
 // BackupResult is a confirmed snapshot plus anything the client should know.
 type BackupResult struct {
 	Snapshot string
+	Summary  string
 	Warnings []string
+}
+
+func formatBytes(b uint64) string {
+	switch {
+	case b >= 1<<30:
+		return fmt.Sprintf("%.2f GB", float64(b)/(1<<30))
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(b)/(1<<20))
+	case b >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(b)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
 }
 
 // Backup warnings shown in History and in email reports.
@@ -235,18 +249,29 @@ func (e Engine) backupOnce(ctx context.Context, d Destination, p Plan, shadow bo
 		return BackupResult{}, "", err
 	}
 	var snapshot string
+	var summary string
 	var events boundedBuffer
 	scan := bufio.NewScanner(stdout)
 	scan.Buffer(make([]byte, 65536), 4*1024*1024)
 	for scan.Scan() {
 		var event struct {
-			Type     string `json:"message_type"`
-			Snapshot string `json:"snapshot_id"`
+			Type          string `json:"message_type"`
+			Snapshot      string `json:"snapshot_id"`
+			TotalBytes    uint64 `json:"total_bytes_processed"`
+			DataAdded     uint64 `json:"data_added"`
+			FilesTotal    uint64 `json:"total_files_processed"`
 		}
 		if json.Unmarshal(scan.Bytes(), &event) == nil {
 			switch event.Type {
 			case "summary":
 				snapshot = event.Snapshot
+				if event.FilesTotal > 0 || event.TotalBytes > 0 || event.DataAdded > 0 {
+					fileWord := "files"
+					if event.FilesTotal == 1 {
+						fileWord = "file"
+					}
+					summary = fmt.Sprintf("Data transferred: %s · %d %s (%s new)", formatBytes(event.TotalBytes), event.FilesTotal, fileWord, formatBytes(event.DataAdded))
+				}
 			case "error", "exit_error":
 				_, _ = events.Write(append(scan.Bytes(), '\n'))
 			}
@@ -261,7 +286,7 @@ func (e Engine) backupOnce(ctx context.Context, d Destination, p Plan, shadow bo
 	if scanErr != nil {
 		return BackupResult{}, diag, scanErr
 	}
-	result := BackupResult{Snapshot: snapshot}
+	result := BackupResult{Snapshot: snapshot, Summary: summary}
 	if strings.Contains(strings.ToLower(diag), "failed to create snapshot") {
 		result.Warnings = append(result.Warnings, WarnShadowFailed)
 	}
