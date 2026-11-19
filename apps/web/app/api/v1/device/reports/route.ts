@@ -12,10 +12,16 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const smtp = smtpEnv();
+    const adminAlertEmail = (
+      process.env.ADMIN_ALERT_EMAIL ||
+      process.env.LEAD_NOTIFY_EMAIL ||
+      "ishansavaliya787@gmail.com"
+    ).trim();
     const { status, body } = await submitReports(
       {
         repo: createSupabaseRepo(serverEnv()),
         mailer: smtp ? createSmtpMailer(smtp) : null,
+        adminAlertEmail,
       },
       bearerToken(req),
       (await readJsonBody(req)) ?? null,

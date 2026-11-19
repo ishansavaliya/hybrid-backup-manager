@@ -57,6 +57,7 @@ func OpenStore(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	_, _ = db.Exec(`ALTER TABLE backup_plans_cache ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0`)
 	if err = os.Chmod(path, 0600); err != nil {
 		db.Close()
 		return nil, err
@@ -68,11 +69,15 @@ func (s *Store) SavePlan(p Plan) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.Exec(`INSERT INTO backup_plans_cache(id,config) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET config=excluded.config`, p.ID, string(b))
+	enc := 0
+	if p.Encrypted {
+		enc = 1
+	}
+	_, err = s.DB.Exec(`INSERT INTO backup_plans_cache(id,config,encrypted) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET config=excluded.config,encrypted=excluded.encrypted`, p.ID, string(b), enc)
 	return err
 }
 func (s *Store) Plans() ([]Plan, error) {
-	rows, err := s.DB.Query(`SELECT config FROM backup_plans_cache ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT config, COALESCE(encrypted, 0) FROM backup_plans_cache ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -80,25 +85,29 @@ func (s *Store) Plans() ([]Plan, error) {
 	out := []Plan{}
 	for rows.Next() {
 		var raw string
+		var enc int
 		var p Plan
-		if err = rows.Scan(&raw); err != nil {
+		if err = rows.Scan(&raw, &enc); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal([]byte(raw), &p); err != nil {
 			return nil, err
 		}
+		p.Encrypted = p.Encrypted || enc != 0 || DefaultEncrypted
 		out = append(out, p)
 	}
 	return out, rows.Err()
 }
 func (s *Store) Plan(id string) (Plan, error) {
 	var raw string
+	var enc int
 	var p Plan
-	err := s.DB.QueryRow(`SELECT config FROM backup_plans_cache WHERE id=?`, id).Scan(&raw)
+	err := s.DB.QueryRow(`SELECT config, COALESCE(encrypted, 0) FROM backup_plans_cache WHERE id=?`, id).Scan(&raw, &enc)
 	if err != nil {
 		return p, fmt.Errorf("plan not found: %w", err)
 	}
 	err = json.Unmarshal([]byte(raw), &p)
+	p.Encrypted = p.Encrypted || enc != 0 || DefaultEncrypted
 	return p, err
 }
 func (s *Store) Executions() ([]Execution, error) {

@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { CalendarClock, Database, HardDrive, Play, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  Database,
+  HardDrive,
+  Info,
+  Play,
+  Settings2,
+  Trash2,
+} from "lucide-react";
 import type {
   AgentOverview,
   Plan,
@@ -45,6 +53,11 @@ export function Plans({
   const { t, weekdays, relative, dateTime } = useI18n();
   const p = t.plans;
   type Target = { planId: string; destinationId: string };
+  const [manageFor, setManageFor] = useState<{
+    plan: Plan;
+    dest: Plan["destinations"][number];
+    running: boolean;
+  } | null>(null);
   const [initFor, setInitFor] = useState<Target | null>(null);
   const [connectFor, setConnectFor] = useState<Target | null>(null);
   const [deleting, setDeleting] = useState<Plan | null>(null);
@@ -183,7 +196,6 @@ export function Plans({
                 const last = jobs.find(
                   (j) => j.planId === plan.id && j.destinationId === d.id,
                 );
-                const params = { planId: plan.id, destinationId: d.id };
                 const disk = data.disks?.find(
                   (x) => x.planId === plan.id && x.destinationId === d.id,
                 );
@@ -221,51 +233,13 @@ export function Plans({
                       <Button
                         variant="secondary"
                         size="sm"
-                        disabled={busy}
+                        disabled={busy || running}
                         onClick={() =>
-                          void act(async () => {
-                            await request("testDestination", params);
-                            notify(p.testOk);
-                          })
+                          setManageFor({ plan, dest: d, running })
                         }
                       >
-                        {p.test}
-                      </Button>
-                      {ro ? null : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy || paused}
-                          onClick={() => setInitFor(params)}
-                        >
-                          {p.init}
-                        </Button>
-                      )}
-                      {d.passwordFile || ro ? null : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => {
-                            setKey("");
-                            setConnectFor(params);
-                          }}
-                        >
-                          {p.connect}
-                        </Button>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() =>
-                          void act(async () => {
-                            await request("check", params);
-                            notify(p.verifyOk);
-                          })
-                        }
-                      >
-                        {p.verify}
+                        <Settings2 size={14} aria-hidden="true" />
+                        Manage
                       </Button>
                     </div>
                   </div>
@@ -275,6 +249,143 @@ export function Plans({
           </Card>
         );
       })}
+      <GxDialog
+        open={!!manageFor}
+        onOpenChange={(o) => !o && setManageFor(null)}
+        title={manageFor ? `${manageFor.dest.name} — Destination tools` : ""}
+        description={manageFor?.dest.repository}
+        closeLabel={t.common.close}
+        width={560}
+      >
+        {manageFor ? (
+          <div className="gx-dialog__body" style={{ display: "grid", gap: 12 }}>
+            <div className="gx-tool-row">
+              <div className="gx-tool-row__info">
+                <span className="gx-tool-row__title">
+                  <Info size={14} aria-hidden="true" />
+                  {p.test}
+                </span>
+                <p className="gx-tool-row__desc">
+                  Checks that your external backup disk or folder is plugged in
+                  and ready to save files.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy || manageFor.running}
+                onClick={() => {
+                  const params = {
+                    planId: manageFor.plan.id,
+                    destinationId: manageFor.dest.id,
+                  };
+                  setManageFor(null);
+                  void act(async () => {
+                    await request("testDestination", params);
+                    notify(p.testOk);
+                  });
+                }}
+              >
+                {p.test}
+              </Button>
+            </div>
+            {manageFor.plan.restoreOnly ? null : (
+              <div className="gx-tool-row">
+                <div className="gx-tool-row__info">
+                  <span className="gx-tool-row__title">
+                    <Info size={14} aria-hidden="true" />
+                    {p.init}
+                  </span>
+                  <p className="gx-tool-row__desc">
+                    Prepares this destination folder for the first time.
+                    Existing backups are never overwritten.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy || paused || manageFor.running}
+                  onClick={() => {
+                    const params = {
+                      planId: manageFor.plan.id,
+                      destinationId: manageFor.dest.id,
+                    };
+                    setManageFor(null);
+                    setInitFor(params);
+                  }}
+                >
+                  {p.init}
+                </Button>
+              </div>
+            )}
+            {manageFor.dest.passwordFile || manageFor.plan.restoreOnly ? null : (
+              <div className="gx-tool-row">
+                <div className="gx-tool-row__info">
+                  <span className="gx-tool-row__title">
+                    <Info size={14} aria-hidden="true" />
+                    {p.connect}
+                  </span>
+                  <p className="gx-tool-row__desc">
+                    Links an existing backup folder (for example from another
+                    PC) using your Recovery Kit key.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy || manageFor.running}
+                  onClick={() => {
+                    const params = {
+                      planId: manageFor.plan.id,
+                      destinationId: manageFor.dest.id,
+                    };
+                    setManageFor(null);
+                    setKey("");
+                    setConnectFor(params);
+                  }}
+                >
+                  {p.connect}
+                </Button>
+              </div>
+            )}
+            <div className="gx-tool-row">
+              <div className="gx-tool-row__info">
+                <span className="gx-tool-row__title">
+                  <Info size={14} aria-hidden="true" />
+                  {p.verify}
+                </span>
+                <p className="gx-tool-row__desc">
+                  Checks your saved backup files on disk to confirm they are
+                  complete and undamaged.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy || manageFor.running}
+                onClick={() => {
+                  const params = {
+                    planId: manageFor.plan.id,
+                    destinationId: manageFor.dest.id,
+                  };
+                  setManageFor(null);
+                  void act(async () => {
+                    await request("check", params);
+                    notify(p.verifyOk);
+                  });
+                }}
+              >
+                {p.verify}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        <footer className="gx-dialog__foot">
+          <Button variant="secondary" onClick={() => setManageFor(null)}>
+            {t.common.close}
+          </Button>
+        </footer>
+      </GxDialog>
       <GxDialog
         open={!!initFor}
         onOpenChange={(o) => !o && setInitFor(null)}

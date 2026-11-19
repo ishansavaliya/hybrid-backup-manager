@@ -47,12 +47,15 @@ func TestLocalDestination(ctx context.Context, d Destination) error {
 	}
 	if _, err = os.Stat(path); os.IsNotExist(err) {
 		path = filepath.Dir(path)
+		if _, parentErr := os.Stat(path); parentErr != nil {
+			return errors.New("External backup disk or folder is not connected. Plug in your backup drive and try again.")
+		}
 	} else if err != nil {
-		return err
+		return errors.New("External backup disk or folder is not connected. Plug in your backup drive and try again.")
 	}
 	f, err := os.CreateTemp(path, ".bakvion-probe-")
 	if err != nil {
-		return errors.New("destination write probe failed")
+		return errors.New("Cannot write to the backup disk. Check that the external drive is plugged in, unlocked, and has free space.")
 	}
 	name := f.Name()
 	defer os.Remove(name)

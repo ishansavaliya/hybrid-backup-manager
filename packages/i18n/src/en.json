@@ -131,7 +131,9 @@
       "dark": "Use dark theme",
       "language": "Language",
       "connected": "Service running",
-      "disconnected": "Service not running"
+      "disconnected": "Service not running",
+      "online": "Internet connected",
+      "offline": "Internet offline"
     },
     "common": {
       "cancel": "Cancel",

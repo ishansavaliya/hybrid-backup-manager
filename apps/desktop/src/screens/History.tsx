@@ -4,6 +4,23 @@ import { useI18n } from "../i18n";
 import { Badge, EmptyState, stateTone } from "../ui";
 import { runNotes } from "../notes";
 
+function friendlyRunError(raw: string): string {
+  const e = raw.toLowerCase();
+  if (
+    e.includes("exit status 10") ||
+    e.includes("does not exist") ||
+    e.includes("cannot find the path")
+  )
+    return "External backup disk or folder was not connected. Plug in your drive and try again.";
+  if (e.includes("exit status 11") || e.includes("lock"))
+    return "Another backup or verification was already using this disk. Try again in a moment.";
+  if (e.includes("exit status 12") || e.includes("wrong password"))
+    return "Backup key did not match this destination folder.";
+  if (e.includes("write probe failed"))
+    return "Cannot write to the backup disk. Check that the drive is plugged in and unlocked.";
+  return raw;
+}
+
 export function HistoryTable({
   plans,
   jobs,
@@ -55,7 +72,7 @@ export function HistoryTable({
               </td>
               {compact ? null : (
                 <td className="gx-muted">
-                  {j.error ||
+                  {(j.error ? friendlyRunError(j.error) : "") ||
                     (j.snapshotId ? j.snapshotId.slice(0, 12) : h.waiting)}
                   {runNotes(t, j.notes).map((n) => (
                     <span

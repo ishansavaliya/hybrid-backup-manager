@@ -67,11 +67,14 @@ function Main({
 
   const refresh = useCallback(async () => {
     try {
-      setData(await request<AgentOverview>("overview"));
+      const next = await request<AgentOverview>("overview");
+      setData(next);
       setConnectionError(null);
+      return next;
     } catch (e) {
       setData(null);
       setConnectionError(toAppError(e));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -81,6 +84,16 @@ function Main({
     const timer = setInterval(() => void refresh(), 5000);
     return () => clearInterval(timer);
   }, [refresh]);
+  useEffect(() => {
+    if (!message) return;
+    const tmr = setTimeout(() => setMessage(""), 5500);
+    return () => clearTimeout(tmr);
+  }, [message]);
+  useEffect(() => {
+    if (!error) return;
+    const tmr = setTimeout(() => setError(null), 7000);
+    return () => clearTimeout(tmr);
+  }, [error]);
 
   async function act(fn: () => Promise<void>) {
     setBusy(true);
@@ -100,13 +113,11 @@ function Main({
   const acct = account.status;
   const paused = !acct || acct.mode !== "full";
   const accountError = errorText(t, account.error);
+  const signedOut = acct
+    ? acct.mode === "signed_out"
+    : data?.status.mode === "signed_out";
 
-  if (
-    acct &&
-    acct.mode === "signed_out" &&
-    data &&
-    (!plans.length || showSignIn)
-  )
+  if (signedOut && data && (!plans.length || showSignIn))
     return (
       <SignIn
         error={accountError}
@@ -117,6 +128,8 @@ function Main({
       />
     );
 
+  if (loading && "__TAURI_INTERNALS__" in window) return null;
+
   const header: Record<Tab, { title: string; subtitle: string }> = {
     overview: { title: t.overview.title, subtitle: t.overview.subtitle },
     plans: { title: t.plans.title, subtitle: t.plans.subtitle },
@@ -124,12 +137,14 @@ function Main({
     history: { title: t.history.title, subtitle: t.history.subtitle },
     settings: { title: t.settings.title, subtitle: t.settings.subtitle },
   };
-  const shownError = error ?? connectionError;
-
   return (
     <Shell
       tab={tab}
-      onTab={setTab}
+      onTab={(next) => {
+        setTab(next);
+        setError(null);
+        setMessage("");
+      }}
       connected={!!data}
       theme={theme}
       onToggleTheme={onToggleTheme}
@@ -158,13 +173,9 @@ function Main({
             ) : null
           }
         />
-        {shownError ? (
-          <Notice
-            kind="error"
-            onClose={error ? () => setError(null) : undefined}
-            closeLabel={t.common.close}
-          >
-            {errorText(t, shownError)}
+        {connectionError ? (
+          <Notice kind="error" closeLabel={t.common.close}>
+            {errorText(t, connectionError)}
           </Notice>
         ) : null}
         {acct && paused ? (
@@ -174,15 +185,6 @@ function Main({
             onSync={account.syncNow}
             onSignIn={() => setShowSignIn(true)}
           />
-        ) : null}
-        {message ? (
-          <Notice
-            kind="ok"
-            onClose={() => setMessage("")}
-            closeLabel={t.common.close}
-          >
-            {message}
-          </Notice>
         ) : null}
 
         {loading ? (
@@ -268,7 +270,22 @@ function Main({
             onSignOut={account.signOut}
             themePref={themePref}
             onThemePref={onThemePref}
-            onRefreshService={() => void refresh()}
+            onRefreshService={async () => {
+              const res = await refresh();
+              if (res) {
+                setError(null);
+                setMessage(
+                  `BakvionService is running (v${res.status.version}).`,
+                );
+              } else {
+                setMessage("");
+                setError({
+                  code: "SERVICE_OFF",
+                  message:
+                    "BakvionService is not running. Start BakvionService in Windows Services.",
+                });
+              }
+            }}
             kit={data?.kit}
             serviceVersion={data?.status.version ?? acct?.appVersion ?? ""}
             busy={busy}
@@ -281,6 +298,28 @@ function Main({
           <span>Bakvion {data?.status.version ?? acct?.appVersion ?? ""}</span>
         </div>
       </div>
+      {error || message ? (
+        <div className="gx-toast-wrap" aria-live="polite">
+          {error ? (
+            <Notice
+              kind="error"
+              onClose={() => setError(null)}
+              closeLabel={t.common.close}
+            >
+              {errorText(t, error)}
+            </Notice>
+          ) : null}
+          {message ? (
+            <Notice
+              kind="ok"
+              onClose={() => setMessage("")}
+              closeLabel={t.common.close}
+            >
+              {message}
+            </Notice>
+          ) : null}
+        </div>
+      ) : null}
       <PlanWizard
         open={wizard}
         close={() => setWizard(false)}
