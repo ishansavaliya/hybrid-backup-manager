@@ -364,16 +364,21 @@ const route = (r: Pick<ReportInput, "planName" | "destinationName">) =>
 /** Splits a run's notes (one per line) into the cleanup result and warnings. */
 export function readNotes(notes: string): {
   cleanup: string | null;
+  size: string | null;
   warnings: string[];
   /** Notes that need no action (e.g. the disk moved to another letter). */
   info: string[];
 } {
   let cleanup: string | null = null;
+  let size: string | null = null;
   const warnings: string[] = [];
   const info: string[] = [];
   for (const raw of notes.split("\n").map((l) => l.trim())) {
     if (!raw) continue;
-    if (raw === "Old versions cleaned up") cleanup = "Old versions cleaned up";
+    if (raw.startsWith("Data transferred: "))
+      size = raw.slice("Data transferred: ".length).trim();
+    else if (raw === "Old versions cleaned up")
+      cleanup = "Old versions cleaned up";
     else if (raw.startsWith("Cleanup skipped"))
       cleanup = "Skipped this time (backup is safe)";
     else if (raw.startsWith("Backed up without a Windows snapshot"))
@@ -402,7 +407,7 @@ export function readNotes(notes: string): {
       else info.push(raw);
     }
   }
-  return { cleanup, warnings, info };
+  return { cleanup, size, warnings, info };
 }
 
 function noteBox(tone: Tone, label: string, lines: string[]) {
@@ -436,6 +441,7 @@ export function singleReportEmail(r: ReportInput, c: ReportContext): Mail {
     ["Started", ist(r.startedAt)],
     ["Took", duration(r.startedAt, r.finishedAt)],
   ];
+  if (notes.size) rows.push(["Data transferred", notes.size]);
   if (notes.cleanup) rows.push(["Cleanup", notes.cleanup]);
   const f = footer(c);
   const body = `${hero(tone, title, route(r))}${details(rows)}${
